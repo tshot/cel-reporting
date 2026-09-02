@@ -1,0 +1,71 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "2a5f7e85f4e5503659d135fb9f0ab7b9",
+    "packages": [
+        {
+            "name": "cel/project-emollient",
+            "version": "dev-master",
+            "dist": {
+                "type": "path",
+                "url": "../projects/Emollient",
+                "reference": "950e75df1ae6323ac7915fac18b5baa1ac549ab6"
+            },
+            "require": {
+                "cel/reporting-engine": "*",
+                "cel/shared-lib": "*",
+                "php": ">=8.1"
+            },
+            "type": "project",
+            "autoload": {
+                "psr-4": {
+                    "CEL\\Projects\\Emollient\\": ""
+                }
+            },
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "cel/shared-lib",
+            "version": "dev-master",
+            "dist": {
+                "type": "path",
+                "url": "../shared-lib",
+                "reference": "14e2499a37704ce77513b247c39f4044b0c24e64"
+            },
+            "require": {
+                "php": ">=8.1"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "CEL\\Shared\\": "src/"
+                }
+            },
+            "authors": [
+                {
+                    "name": "Amit Tandon",
+                    "email": "amit.tandon@celworld.org"
+                }
+            ],
+            "transport-options": {
+                "relative": true
+            }
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "dev",
+    "stability-flags": {},
+    "prefer-stable": true,
+    "prefer-lowest": false,
+    "platform": {
+        "php": ">=8.1"
+    },
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
+}

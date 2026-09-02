@@ -1,0 +1,272 @@
+/* ===== LENGTH OF STAY REPORT ===== */
+
+/* ── Summary cards ──────────────────────────────────────────────────────── */
+.los-cards
+{
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+}
+
+.los-card
+{
+    flex: 1;
+    min-width: 160px;
+    background: #f8f9fb;
+    border: 1px solid #dde3ec;
+    border-radius: 8px;
+    padding: 18px 20px;
+}
+
+.los-card-label
+{
+    font-size: 11px;
+    color: #6b7585;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 6px;
+}
+
+.los-card-value
+{
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a2c3d;
+    line-height: 1;
+}
+
+.los-card-sub
+{
+    font-size: 12px;
+    color: #8892a4;
+    margin-top: 4px;
+}
+
+.los-card.accent
+{
+    background: #eef3fb;
+    border-color: #b5cef4;
+}
+
+.los-card.accent .los-card-value
+{
+    color: #1a5ea8;
+}
+
+/* ── Two-stat column colouring ──────────────────────────────────────────── */
+/* .incl-val
+{
+    color: #1a5ea8;
+    font-weight: 600;
+}
+*/
+.incl-val::after
+{
+	
+    content: attr(data-value) "/";
+    color: #1a5ea8;
+    font-weight: 600;
+}
+
+
+.excl-val
+{
+    color: #2e7d52;
+    font-weight: 600;
+    font-size: 11px;
+    display: block;
+}
+
+.sub-val
+{
+    font-size: 11px;
+    color: #8892a4;
+    display: block;
+}
+
+.stat-note
+{
+    font-size: 10px;
+    color: #a0aab8;
+    font-weight: 400;
+}
+
+/* ── LOS band badges ────────────────────────────────────────────────────── */
+.los-badge
+{
+    display: inline-block;
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.badge-lt7   { background: #e8f5e9; color: #2e7d52; }
+.badge-7_14  { background: #e3f2fd; color: #1a5ea8; }
+.badge-15_27 { background: #fff3e0; color: #e65100; }
+.badge-28    { background: #fce4ec; color: #c2185b; }
+.badge-null  { background: #f5f5f5; color: #9e9e9e; }
+
+/* ── Chart wrappers ─────────────────────────────────────────────────────── */
+.chart-wrap
+{
+    position: relative;
+    height: 320px;
+    margin: 12px 0;
+}
+
+.chart-legend
+{
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #5a6474;
+}
+
+.chart-legend-dot
+{
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+/* ── Section blocks ─────────────────────────────────────────────────────── */
+.section-block
+{
+    margin-bottom: 40px;
+}
+
+.section-header
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.section-title
+{
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a2c3d;
+    padding-left: 10px;
+    border-left: 3px solid #2e4057;
+}
+
+.export-btn
+{
+    font-size: 11px;
+    color: #5a6474;
+    background: #f5f7fa;
+    border: 1px solid #dde3ec;
+    border-radius: 5px;
+    padding: 4px 10px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.export-btn:hover { background: #eaecf0; }
+
+/* ── Per-patient table ──────────────────────────────────────────────────── */
+table.los-table
+{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+table.los-table th
+{
+    background: #2e4057;
+    color: #fff;
+    padding: 9px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+table.los-table th.num { text-align: right; }
+
+table.los-table td
+{
+    padding: 8px 12px;
+    border-bottom: 1px solid #eaecf0;
+}
+
+table.los-table td.num
+{
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+table.los-table tbody tr:hover { background: #f5f7fa; }
+
+table.los-table tfoot td
+{
+    background: #f0f4f8;
+    font-weight: 700;
+    border-top: 2px solid #c5d3e0;
+}
+
+table.los-table .site-col { font-weight: 600; }
+
+/* ── Filter bar ─────────────────────────────────────────────────────────── */
+.filter-row
+{
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.filter-row select,
+.filter-row input[type="text"]
+{
+    border: 1px solid #dde3ec;
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #2d3748;
+    background: #fff;
+}
+
+.filter-row label
+{
+    font-size: 12px;
+    color: #5a6474;
+}
+
+#filterCount
+{
+    font-size: 12px;
+    color: #8892a4;
+    margin-left: auto;
+}
+
+/* ── Sortable column header cursor ──────────────────────────────────────── */
+table.los-table th[onclick] { cursor: pointer; }
+table.los-table th[onclick]:hover { background: #253347; }
+
+/* ── Chart footnote ─────────────────────────────────────────────────────── */
+.chart-footnote
+{
+    font-size: 11px;
+    color: #8892a4;
+    margin-top: 6px;
+}
+
+/* ── Stat legend note ───────────────────────────────────────────────────── */
+.stat-legend-note
+{
+    font-size: 11px;
+    color: #8892a4;
+    margin-top: 8px;
+}

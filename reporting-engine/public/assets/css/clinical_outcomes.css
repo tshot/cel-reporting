@@ -1,0 +1,123 @@
+/* clinical_outcomes.css
+ * Report-specific styles for the Clinical Outcomes report.
+ * Base styles come from emollient_eligible.css
+ */
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.co-cards {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.co-card {
+    background: #eff6ff;
+    border-radius: 8px;
+    padding: 14px 18px;
+    min-width: 150px;
+    text-align: center;
+    border: 1px solid #dbeafe;
+}
+
+.co-card .co-val {
+    font-size: 26px;
+    font-weight: bold;
+    color: #2563eb;
+}
+
+.co-card .co-lbl {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+.co-card.green  { background: #f0fdf4; border-color: #bbf7d0; }
+.co-card.green .co-val { color: #16a34a; }
+
+.co-card.amber  { background: #fffbeb; border-color: #fde68a; }
+.co-card.amber .co-val { color: #d97706; }
+
+.co-card.red    { background: #fef2f2; border-color: #fecaca; }
+.co-card.red .co-val { color: #dc2626; }
+
+/* ── Section layout ──────────────────────────────────────────── */
+.co-section {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    margin: 20px 24px;
+    padding: 20px 24px;
+}
+
+.co-section-title {
+    font-size: 17px;
+    font-weight: bold;
+    color: #2563eb;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 10px;
+    margin: 0 0 6px;
+}
+
+.co-section-subtitle {
+    font-size: 13px;
+    color: #6b7280;
+    font-style: italic;
+    margin: 0 0 14px;
+}
+
+.co-tbl-title {
+    font-weight: bold;
+    font-size: 13px;
+    color: #374151;
+    margin: 16px 0 6px;
+}
+
+/* ── Arm badges ──────────────────────────────────────────────── */
+.tag-int {
+    background: #dbeafe;
+    color: #1d4ed8;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.tag-ctrl {
+    background: #d1fae5;
+    color: #065f46;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+/* ── Excluded records table ──────────────────────────────────── */
+.co-excluded-wrap {
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+}
+
+/* ── Download button ─────────────────────────────────────────── */
+.co-download-btn {
+    display: inline-block;
+    background: #2563eb;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 13px;
+    margin-top: 10px;
+}
+
+.co-download-btn:hover { background: #1d4ed8; }
+
+/* ── Note text ───────────────────────────────────────────────── */
+.co-note {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 8px;
+    font-style: italic;
+}

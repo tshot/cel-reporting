@@ -1,0 +1,14 @@
+{
+    "name": "cel/project-ikmc",
+    "type": "project",
+    "require": {
+        "php": ">=8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "CEL\\Projects\\IKMC\\": ""
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

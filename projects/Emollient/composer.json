@@ -1,0 +1,26 @@
+{
+    "name": "cel/project-emollient",
+    "type": "project",
+    "require": {
+        "php": ">=8.1",
+        "cel/shared-lib": "*",
+        "cel/reporting-engine": "*"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../shared-lib"
+        },
+        {
+            "type": "path",
+            "url": "../../reporting-engine"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "CEL\\Projects\\Emollient\\": ""
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

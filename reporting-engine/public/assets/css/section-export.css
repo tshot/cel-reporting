@@ -1,0 +1,84 @@
+/* ===== Section Export Page ===== */
+
+body { margin: 0; background: #f0f2f5; font-family: Arial, Helvetica, sans-serif; }
+
+/* ── Toolbar ── */
+#export-toolbar 
+{
+    position: sticky; top: 0; z-index: 200;
+    background: #2c3e50; color: #fff;
+    padding: 8px 20px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    font-size: 13px; box-shadow: 0 2px 6px rgba(0,0,0,.3);
+}
+#export-toolbar .section-title { font-weight: bold; font-size: 14px; flex: 1; }
+
+.exp-btn 
+{
+    padding: 5px 12px; border: 1px solid #5a7a90; background: #3d5166;
+    color: #fff; cursor: pointer; border-radius: 3px; font-size: 12px;
+    font-family: inherit; white-space: nowrap; transition: background .15s;
+}
+.exp-btn:hover  { background: #4e6a80; }
+.exp-btn.active { background: #1a6496; border-color: #5bc0de; }
+.sep { color: #445; }
+
+/* ── Layout ── */
+#page-body { display: flex; align-items: flex-start; }
+#section-wrap { flex: 1; padding: 30px 40px 60px; min-height: 100vh; }
+
+/* ── Column manager panel ── */
+#col-panel 
+{
+    width: 260px; min-height: 100vh;
+    background: #fff; border-left: 1px solid #ddd;
+    box-shadow: -2px 0 8px rgba(0,0,0,.08);
+    padding: 16px 14px;
+    display: none; flex-direction: column; gap: 6px;
+    position: sticky; top: 44px; font-size: 13px;
+}
+#col-panel.open { display: flex; }
+#col-panel h4
+{
+    margin: 0 0 10px; font-size: 13px; color: #333;
+    border-bottom: 1px solid #eee; padding-bottom: 6px;
+}
+#col-panel p.hint { margin: 0 0 10px; font-size: 11px; color: #888; line-height: 1.4; }
+
+.col-item 
+{
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border: 1px solid #e0e0e0; border-radius: 4px;
+    background: #fafafa; cursor: grab; user-select: none;
+}
+.col-item:active     { cursor: grabbing; }
+.col-item.dragging   { opacity: .4; }
+.col-item.drag-over  { border-color: #3498db; background: #eaf4ff; }
+.col-item input[type=checkbox] { cursor: pointer; }
+.col-item .col-label  { flex: 1; font-size: 12px; color: #333; }
+.col-item .drag-handle { color: #bbb; font-size: 14px; }
+
+#col-panel .apply-btn 
+{
+    margin-top: 10px; padding: 7px; background: #2c3e50; color: #fff;
+    border: none; border-radius: 3px; cursor: pointer; font-size: 13px;
+    font-family: inherit; width: 100%;
+}
+#col-panel .apply-btn:hover { background: #3d5166; }
+
+/* ── Colour pickers ── */
+.colour-row { display: flex; align-items: center; gap: 10px; font-size: 11px; color: #aaa; }
+.colour-row label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.colour-row input[type=color]
+{
+    width: 26px; height: 22px; border: none; padding: 0;
+    cursor: pointer; border-radius: 3px;
+}
+
+/* ── Print ── */
+@media print 
+{
+    #export-toolbar, #col-panel { display: none !important; }
+    body { background: white; }
+    #section-wrap { padding: 10px; }
+}

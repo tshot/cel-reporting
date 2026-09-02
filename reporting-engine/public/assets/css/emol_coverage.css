@@ -1,0 +1,93 @@
+/* =============================================================================
+   emol_coverage.css — Emolliation Coverage Report
+   ============================================================================= */
+
+/* ── Summary table ─────────────────────────────────────────────────────────── */
+.cov-table { width:100%; border-collapse:collapse; font-size:13px; }
+
+.cov-table thead th {
+    background:#1a2c3d;
+    color:#ffffff;
+    padding:10px 14px;
+    text-align:left;
+    font-weight:700;
+    font-size:12px;
+    white-space:nowrap;
+    border-bottom:2px solid #0d1a26;
+}
+.cov-table thead th.num { text-align:right; }
+
+.cov-table td { padding:9px 14px; border-bottom:1px solid #eaecf0; }
+.cov-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.cov-table tfoot td { background:#f0f4f8; font-weight:700; border-top:2px solid #c5d3e0; }
+.cov-table tbody tr:hover { background:#f5f7fa; }
+.cov-table .site-col { font-weight:600; }
+
+/* ── Percentage bar cells ──────────────────────────────────────────────────── */
+.pct-cell { min-width:130px; }
+.pct-bar-wrap { display:flex; align-items:center; gap:8px; }
+.pct-bar-bg {
+    flex:1; height:14px; background:#eaecf0; border-radius:7px; overflow:hidden;
+    min-width:60px;
+}
+.pct-bar-fill { height:100%; border-radius:7px; transition:width 0.3s; }
+.pct-bar-fill.green { background:#4ade80; }
+.pct-bar-fill.red   { background:#f87171; }
+.pct-label { font-size:12px; font-weight:600; min-width:38px; text-align:right; }
+.pct-label.green { color:#2e7d52; }
+.pct-label.red   { color:#c62828; }
+
+/* ── Section headers ───────────────────────────────────────────────────────── */
+.cov-section { margin-bottom:36px; }
+.cov-section-title {
+    font-size:15px; font-weight:700; color:#1a2c3d;
+    padding-left:10px; border-left:3px solid #2e4057;
+    margin-bottom:14px;
+}
+
+/* ── Filter bar ────────────────────────────────────────────────────────────── */
+.cov-filter-row 
+{
+    display:flex; gap:12px; flex-wrap:wrap;
+    align-items:center; margin-bottom:14px;
+}
+.cov-filter-row select,
+.cov-filter-row input[type=text] 
+{
+    border:1px solid #dde3ec; border-radius:5px; padding:5px 9px;
+    font-size:12px; color:#2d3748; background:#fff;
+}
+.cov-filter-row label { font-size:12px; color:#5a6474; }
+#covFilterCount { font-size:12px; color:#8892a4; margin-left:auto; }
+
+/* ── Baby detail table ─────────────────────────────────────────────────────── */
+.cov-detail-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+
+.cov-detail-table thead th 
+{
+    background:#1a2c3d;
+    color:#ffffff;
+    padding:8px 10px;
+    font-size:11px;
+    font-weight:700;
+    white-space:nowrap;
+    cursor:pointer;
+    border-bottom:2px solid #0d1a26;
+}
+.cov-detail-table thead th:hover { background:#253347; }
+
+.cov-detail-table td { padding:7px 10px; border-bottom:1px solid #eaecf0; }
+.cov-detail-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.cov-detail-table tfoot td {
+    background:#f0f4f8; font-weight:700; border-top:2px solid #c5d3e0;
+}
+
+/* ── Badges ────────────────────────────────────────────────────────────────── */
+.badge {
+    display:inline-block; border-radius:4px;
+    padding:2px 8px; font-size:11px; font-weight:600;
+}
+.badge-yes  { background:#e8f5e9; color:#2e7d52; }
+.badge-no   { background:#fce4ec; color:#c2185b; }
+.badge-stop { background:#fff3e0; color:#e65100; }
+.badge-none { background:#f5f5f5; color:#9e9e9e; }

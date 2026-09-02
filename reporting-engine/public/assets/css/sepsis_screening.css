@@ -1,0 +1,113 @@
+/* =============================================================================
+   sepsis_screening.css — Neonatal Sepsis Screening Completion Report
+   ============================================================================= */
+
+/* ── Site summary table ─────────────────────────────────────────────────────── */
+.ss-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.ss-table caption {
+    text-align: left;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 0 0 8px 0;
+    color: #1a2c3d;
+}
+
+.ss-table thead th {
+    background: #1a2c3d;
+    color: #ffffff;
+    padding: 8px 12px;
+    font-weight: 700;
+    font-size: 12px;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.ss-table thead th.ss-th-site { text-align: left; }
+
+.ss-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eaecf0;
+    text-align: center;
+}
+
+.ss-table td.ss-td-site { text-align: left; font-weight: 600; }
+
+.ss-table tbody tr:hover { background: #f5f7fa; }
+
+.ss-table tfoot td {
+    background: #f0f4f8;
+    font-weight: 700;
+    border-top: 2px solid #c5d3e0;
+}
+
+/* ── Per-baby table ─────────────────────────────────────────────────────────── */
+.ss-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+
+.ss-detail-table thead th {
+    background: #1a2c3d;
+    color: #ffffff;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.ss-detail-table thead th.ss-th-left { text-align: left; }
+
+.ss-detail-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #eaecf0;
+    text-align: center;
+}
+
+.ss-detail-table td.ss-td-left { text-align: left; }
+.ss-detail-table td.ss-td-missing { font-size: 11px; color: #c62828; text-align: left; }
+
+.ss-detail-table tbody tr:hover { background: #f5f7fa; }
+
+/* ── Numeric / pct cells ────────────────────────────────────────────────────── */
+.ss-num  { text-align: center; font-variant-numeric: tabular-nums; }
+.ss-pct  { text-align: center; font-weight: 700; }
+
+/* ── Note / legend ──────────────────────────────────────────────────────────── */
+.ss-note {
+    font-size: 11px;
+    color: #8892a4;
+    margin-top: 6px;
+    margin-bottom: 0;
+}
+
+.ss-legend { margin-top: 8px; font-size: 12px; }
+.ss-legend .rag-green::before,
+.ss-legend .rag-amber::before,
+.ss-legend .rag-red::before { content: '■ '; }
+
+/* ── Filter bar ─────────────────────────────────────────────────────────────── */
+.ss-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    flex-wrap: wrap;
+}
+
+.ss-filter-bar label { display: flex; align-items: center; gap: 6px; }
+
+.ss-filter-bar select,
+.ss-filter-bar input[type="text"] {
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid #dde3ec;
+    font-size: 12px;
+}

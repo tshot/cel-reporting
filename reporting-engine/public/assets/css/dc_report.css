@@ -1,0 +1,110 @@
+/* =============================================================================
+   dc_report.css — Data Collector Performance Report
+   ============================================================================= */
+
+/* ── Controls ──────────────────────────────────────────────────────────── */
+.dc-controls {
+    display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end;
+    background:#f8fafc; border:1px solid #dde3ec; border-radius:6px;
+    padding:12px 16px; margin-bottom:24px;
+}
+.dc-ctrl-group { display:flex; flex-direction:column; gap:4px; }
+.dc-ctrl-label { font-size:11px; font-weight:600; color:#5a6474;
+    text-transform:uppercase; letter-spacing:0.4px; }
+.dc-controls input[type="date"] {
+    border:1px solid #dde3ec; border-radius:4px; padding:5px 9px;
+    font-size:12px; color:#2d3748; background:#fff; }
+.dc-controls select {
+    border:1px solid #dde3ec; border-radius:4px; padding:5px 9px;
+    font-size:12px; color:#2d3748; background:#fff; }
+.dc-btn { border:none; border-radius:5px; padding:7px 14px;
+    font-size:12px; font-weight:600; cursor:pointer;
+    background:#2e4057; color:#fff; }
+.dc-btn:hover { background:#253347; }
+
+/* ── Sections ──────────────────────────────────────────────────────────── */
+.dc-section { margin-bottom:36px; }
+.dc-section-title {
+    font-size:13px; font-weight:700; color:#1a2c3d; margin-bottom:6px;
+    padding-left:10px; border-left:3px solid #2e4057; }
+.dc-section-hint { font-size:11px; color:#8892a4; margin:0 0 10px 13px; }
+
+/* ── Table ─────────────────────────────────────────────────────────────── */
+.dc-table-wrap {
+    overflow-x:auto; border:1px solid #dde3ec; border-radius:6px; }
+.dc-table { width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap; }
+
+/* Site header row */
+.dc-site-hdr {
+    background:#1a2c3d !important; color:#fff !important;
+    padding:7px 12px !important; font-size:11px !important;
+    font-weight:700 !important; text-align:center !important;
+    border-right:2px solid #2e4057 !important; }
+
+/* DC column header */
+.dc-col-hdr {
+    background:#2e4057 !important; color:#fff !important;
+    padding:6px 10px !important; font-size:11px !important;
+    font-weight:600 !important; text-align:center !important;
+    border-right:1px solid #3d5068 !important; min-width:70px; }
+.dc-col-hdr small { color:#b0bec5; font-size:10px; display:block; }
+
+/* Metric label column */
+.dc-metric-col {
+    background:#2e4057 !important; color:#fff !important;
+    padding:6px 12px !important; font-size:11px !important;
+    text-align:left !important; min-width:220px; }
+
+/* Data cells */
+.dc-table td {
+    padding:5px 10px; border-bottom:1px solid #eaecf0;
+    border-right:1px solid #f0f2f5; text-align:center; }
+.dc-table td:first-child { text-align:left; }
+.dc-table td small { display:block; color:#8892a4; font-size:10px; }
+.dc-table tbody tr:hover td { background:#f5f7fa; }
+
+/* Primary rows (totals) */
+.dc-metric-label { max-width:240px; white-space:normal; line-height:1.3; }
+.dc-primary td {
+    background:#eef2ff !important; font-weight:700 !important;
+    font-size:12px !important; }
+.dc-primary td:first-child { color:#1a2c3d; }
+
+/* ── Total column ──────────────────────────────────────────────────────── */
+.dc-total-col {
+    background:#1a2c3d !important; border-right:2px solid #3d5068 !important; }
+.dc-table td.dc-total-val {
+    background:#f0f4ff; font-weight:600;
+    border-right:2px solid #c5cfe0 !important; }
+.dc-primary td.dc-total-val { background:#dde4ff !important; }
+
+/* ── Flag cells — outlier values ───────────────────────────────────────── */
+/* Cells >15pp from the Total row are highlighted as potential data quality flags */
+.dc-table td.dc-flag {
+    background:#fff3e0 !important; color:#e65100 !important;
+    font-weight:700 !important; }
+.dc-table td.dc-flag::after {
+    content:' ⚑'; font-size:10px; }
+
+/* Blank value rows */
+.dc-blank-row td { color:#c62828 !important; font-style:italic; }
+
+/* ── Charts ─────────────────────────────────────────────────────────────── */
+.dc-chart-wrap {
+    background:#fff; border:1px solid #dde3ec; border-radius:6px;
+    padding:16px; position:relative; }
+
+/* Size modifiers — add class to .dc-chart-wrap */
+.dc-chart-wrap.dc-chart-sm   { height:300px; }
+.dc-chart-wrap.dc-chart-md   { height:480px; }   /* default */
+.dc-chart-wrap.dc-chart-lg   { height:650px; }
+.dc-chart-wrap.dc-chart-xl   { height:900px; }
+.dc-chart-wrap.dc-chart-full { height:90vh;  }   /* full page */
+
+/* Chart.js canvas must fill its container when height is set */
+.dc-chart-wrap.dc-chart-sm canvas,
+.dc-chart-wrap.dc-chart-md canvas,
+.dc-chart-wrap.dc-chart-lg canvas,
+.dc-chart-wrap.dc-chart-xl canvas,
+.dc-chart-wrap.dc-chart-full canvas {
+    max-height:100% !important; }

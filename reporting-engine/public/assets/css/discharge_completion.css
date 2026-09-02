@@ -1,0 +1,63 @@
+/* =============================================================================
+   discharge_completion.css — Discharge Form Completion Report
+   ============================================================================= */
+
+/* ── Summary table ─────────────────────────────────────────────────────────── */
+.dc-table { width:100%; border-collapse:collapse; font-size:13px; }
+
+.dc-table thead th {
+    background:#1a2c3d;
+    color:#ffffff;
+    padding:8px 12px;
+    font-weight:700;
+    font-size:12px;
+    white-space:nowrap;
+    text-align:center;
+    border-bottom:2px solid #0d1a26;
+}
+
+.dc-table thead th.dc-th-site { text-align:left; }
+
+.dc-table td { padding:8px 12px; border-bottom:1px solid #eaecf0; text-align:center; }
+.dc-table td.dc-td-site { text-align:left; font-weight:600; }
+.dc-table tbody tr:hover { background:#f5f7fa; }
+.dc-table tfoot td { background:#f0f4f8; font-weight:700; border-top:2px solid #c5d3e0; }
+
+/* ── Group header row ──────────────────────────────────────────────────────── */
+.dc-table th.dc-group-header {
+    background:#253347;
+    border-bottom:1px solid #c5d3e0;
+}
+
+/* ── Special discharge columns ─────────────────────────────────────────────── */
+.dc-special-header { color:#ffcdd2 !important; }
+.dc-special-cell   { color:#c62828; font-weight:600; }
+.dc-special-th     { color:#c62828; }
+
+/* ── Numeric / pct cells ───────────────────────────────────────────────────── */
+.dc-num  { text-align:center; font-variant-numeric:tabular-nums; }
+.dc-pct  { text-align:center; font-weight:700; font-variant-numeric:tabular-nums; }
+.dc-bold { font-weight:700; }
+
+/* ── Note paragraph ────────────────────────────────────────────────────────── */
+.dc-note { font-size:11px; color:#8892a4; margin-top:6px; }
+
+/* ── Per-baby detail table ─────────────────────────────────────────────────── */
+.dc-detail-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+
+.dc-detail-table thead th {
+    background:#1a2c3d;
+    color:#ffffff;
+    padding:8px 10px;
+    font-size:11px;
+    font-weight:700;
+    white-space:nowrap;
+    text-align:left;
+}
+.dc-detail-table thead th.dc-num { text-align:center; }
+
+.dc-detail-table td { padding:7px 10px; border-bottom:1px solid #eaecf0; }
+.dc-detail-table td.dc-num { text-align:center; }
+.dc-detail-table tbody tr:hover { background:#f5f7fa; }
+
+.dc-type-special { color:#c62828; font-weight:600; }

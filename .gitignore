@@ -1,0 +1,15 @@
+vendor/
+node_modules/
+.env
+var/
+*.bak
+*.orig
+*.rej
+*.old
+*.log
+shared-lib/php-dep-dashboard/
+reporting-engine/*.xlsx
+chrome/
+reporting-engine/chrome/
+.cache/
+projects/iKMC/sync_config.php

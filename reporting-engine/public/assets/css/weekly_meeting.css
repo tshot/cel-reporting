@@ -1,0 +1,125 @@
+/* =============================================================================
+   weekly_meeting.css — Weekly Meeting Site Summary Report  (v2)
+   All styles now embedded inline via WeeklyMeetingHtmlExporter::inlineCss()
+   when inline=true. This file is loaded when inline=false (external mode).
+   ============================================================================= */
+
+/* Re-export of the inlineCss() method content for external stylesheet mode. */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body { font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; background: #f4f6f9; color: #1a2530; }
+
+.report-container { max-width: 1400px; margin: 0 auto; padding: 24px 28px; }
+
+.report-header { background: linear-gradient(135deg, #1a2c3d 0%, #2e4a68 100%); color: #fff; padding: 20px 28px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.report-title { font-size: 20px; font-weight: 700; letter-spacing: 0.3px; }
+.report-period { font-size: 12px; color: #a8c4e0; margin-top: 4px; }
+
+.wm-controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.wm-btn { border: none; border-radius: 5px; padding: 8px 18px; font-size: 12px; font-weight: 600; cursor: pointer; background: #2e4a68; color: #fff; transition: background 0.15s; }
+.wm-btn:hover { background: #1a2c3d; }
+.wm-btn-secondary { background: #546e8a; }
+.wm-btn-secondary:hover { background: #3e556b; }
+
+.wm-section-wrap { margin-bottom: 28px; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
+.wm-section-title { background: linear-gradient(90deg, #1a2c3d 0%, #2e4a68 100%); color: #fff; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
+.wm-section-name { font-size: 14px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
+.wm-section-meta { font-size: 11px; color: #a8c4e0; }
+.wm-section-meta code { background: rgba(255,255,255,0.15); padding: 1px 5px; border-radius: 3px; font-size: 10px; color: #d4e8ff; }
+
+.wm-table-wrap { overflow-x: auto; background: #fff; }
+.wm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.wm-table thead th { padding: 10px 12px; font-size: 11px; font-weight: 700; text-align: center; white-space: nowrap; border-bottom: 2px solid #2e4a68; border-right: 1px solid rgba(255,255,255,0.15); }
+.wm-metric-col { background: #243c55 !important; color: #fff !important; text-align: left !important; min-width: 260px; position: sticky; left: 0; z-index: 2; }
+.wm-total-col { background: #1a2c3d !important; color: #fff !important; min-width: 72px; border-right: 2px solid rgba(255,255,255,0.3) !important; }
+.wm-site-col { background: #2e4a68 !important; color: #fff !important; min-width: 90px; }
+.wm-pct-col { background: #3a5a7a !important; color: #fff !important; min-width: 62px; }
+
+.wm-section-hdr td { background: #dde6f0 !important; color: #1a2c3d !important; font-weight: 700 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.7px !important; padding: 7px 14px !important; border-top: 2px solid #b8c9da !important; border-bottom: 1px solid #c5d3e0 !important; }
+.wm-date-field { font-size: 10px; font-weight: 400; color: #546e8a; margin-left: 8px; }
+.wm-subsection-hdr td { background: #eef2f7 !important; color: #3a5270 !important; font-weight: 600 !important; font-size: 11px !important; font-style: italic !important; padding: 5px 14px 5px 28px !important; border-bottom: 1px solid #dde3ec !important; }
+.wm-subsection-total td { background: #f0f4fa !important; border-top: 1px solid #c5d3e0 !important; border-bottom: 2px solid #c5d3e0 !important; padding: 6px 12px !important; }
+.wm-subsection-total .wm-metric-label { background: #f0f4fa !important; padding-left: 28px !important; color: #1a2c3d !important; }
+.wm-subsection-total .wm-total-val { background: #e4ebf5 !important; }
+
+.wm-table tbody tr td { padding: 7px 12px; border-bottom: 1px solid #edf0f4; border-right: 1px solid #f3f5f8; text-align: center; color: #1a2530; }
+.wm-metric-label { text-align: left !important; color: #2d3a48; position: sticky; left: 0; background: #fff; z-index: 1; padding-left: 14px !important; }
+.wm-total-val { font-weight: 700 !important; background: #f0f5ff !important; border-right: 2px solid #c5d0e8 !important; color: #1a2c3d !important; }
+.wm-pct-val { color: #2e6da4 !important; font-weight: 600 !important; font-size: 11px !important; }
+.wm-primary td { background: #e8f0fb !important; font-weight: 700 !important; font-size: 12px !important; border-top: 1px solid #b8cce4 !important; border-bottom: 1px solid #b8cce4 !important; color: #102040 !important; }
+.wm-primary .wm-metric-label { background: #e8f0fb !important; }
+.wm-primary .wm-total-val { background: #d5e4f8 !important; }
+.wm-table tbody tr:nth-child(even) td { background: #fafbfc; }
+.wm-table tbody tr:nth-child(even) .wm-metric-label { background: #fafbfc; }
+.wm-table tbody tr:nth-child(even) .wm-total-val { background: #edf3ff !important; }
+.wm-table tbody tr:hover td { background: #eef3fa !important; }
+.wm-table tbody tr:hover .wm-metric-label { background: #eef3fa !important; }
+.wm-table tbody tr:hover .wm-total-val { background: #dde8f8 !important; }
+.wm-section-hdr:hover td { background: #dde6f0 !important; }
+.wm-subsection-hdr:hover td { background: #eef2f7 !important; }
+
+@media print {
+    body { background: #fff; font-size: 10px; }
+
+    /* Hide controls */
+    .wm-controls, .wm-btn { display: none !important; }
+
+    /* Section cards */
+    .wm-section-wrap {
+        box-shadow: none;
+        margin-bottom: 14px;
+        page-break-inside: avoid;
+        border-radius: 0;
+    }
+
+    /* Section title bar — preserve background colour */
+    .wm-section-title {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        padding: 7px 12px;
+    }
+
+    /* Table */
+    .wm-table-wrap { overflow: visible; }
+    .wm-table {
+        font-size: 9px;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .wm-table thead th { padding: 4px 6px; }
+    .wm-table tbody tr td { padding: 3px 6px; }
+
+    /* Disable sticky positioning for print */
+    .wm-metric-label,
+    .wm-metric-col { position: static !important; z-index: auto !important; }
+
+    /* Preserve header background colours — override emollient_eligible.css print rule */
+    .wm-metric-col  { background: #243c55 !important; color: #fff !important; }
+    .wm-total-col   { background: #1a2c3d !important; color: #fff !important; }
+    .wm-site-col    { background: #2e4a68 !important; color: #fff !important; }
+    .wm-pct-col     { background: #3a5a7a !important; color: #fff !important; }
+
+    /* Preserve section/subsection row colours */
+    .wm-section-hdr td    { background: #dde6f0 !important; }
+    .wm-subsection-hdr td { background: #eef2f7 !important; }
+    .wm-primary td        { background: #e8f0fb !important; }
+    .wm-subsection-total td { background: #f0f4fa !important; }
+    .wm-total-val         { background: #f0f5ff !important; }
+}
+
+/* Formula note on derived metrics */
+.wm-formula-note {
+    font-size: 10px;
+    font-weight: 400;
+    color: #546e8a;
+    font-style: italic;
+    margin-left: 6px;
+}
+
+/* Indented sub-rows (e.g. Intervention/Control under Still in Hospital) */
+.wm-metric-indented {
+    padding-left: 32px !important;
+    color: #546e8a;
+    font-style: italic;
+}

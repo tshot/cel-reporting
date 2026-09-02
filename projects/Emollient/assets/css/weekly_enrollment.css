@@ -1,0 +1,182 @@
+/* ===== WEEKLY ENROLLMENT CHART ===== */
+
+body
+{
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 30px;
+    background: #f9f9f9;
+    color: #000;
+}
+
+.weekly-wrap
+{
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+    max-width: 1400px;
+    margin: 20px auto;
+}
+
+.weekly-title
+{
+    color: #1a1a2e;
+    font-size: 18px;
+    margin-bottom: 20px;
+}
+
+.report-date
+{
+    display: block;
+    font-size: 11px;
+    font-weight: normal;
+    color: #666;
+    margin-top: 4px;
+}
+
+#weeklyChart
+{
+    max-height: 700;
+}
+
+/* ===== TOOLBAR (shared pattern) ===== */
+
+.report-toolbar
+{
+    max-width: 960px;
+    margin: 20px auto 10px auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+}
+
+.toolbar-title  { font-weight: bold; color: #333; }
+.toolbar-actions { display: flex; gap: 8px; }
+
+.toolbar-btn
+{
+    display: inline-block;
+    padding: 5px 12px;
+    border: 1px solid #666;
+    background: #f2f2f2;
+    color: #000;
+    text-decoration: none;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.toolbar-btn:hover { background: #e0e0e0; }
+
+/* ===== PRINT ===== */
+
+@media print
+{
+    body          { background: #fff; margin: 10px; }
+    .weekly-wrap  { box-shadow: none; padding: 0; max-width: 100%; }
+    .report-toolbar { display: none; }
+}
+
+
+/* ===== MONTHLY ENROLLMENT CHART ===== */
+
+.chart-wrap
+{
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+
+.chart-title
+{
+    font-size: 16px;
+    font-weight: bold;
+    color: #1a1a2e;
+    margin-bottom: 4px;
+}
+
+.chart-title .report-date
+{
+    display: block;
+    font-size: 11px;
+    font-weight: normal;
+    color: #888;
+    margin-bottom: 16px;
+}
+
+.toggle-bar
+{
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    width: fit-content;
+    border: 2px solid #1a1a2e;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.toggle-btn
+{
+    padding: 7px 22px;
+    border: none;
+    background: #fff;
+    color: #1a1a2e;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.toggle-btn.active
+{
+    background: #1a1a2e;
+    color: #fff;
+}
+
+.toggle-btn:not(.active):hover
+{
+    background: #f0f0f0;
+}
+
+.chart-container
+{
+    position: relative;
+    height: 420px;
+}
+
+/* ===== ENROLLMENT TABLE (ChartExporter) ===== */
+/* Previously hardcoded in ChartExporter::tableStyles() — moved here
+   so the table styling is overridable, themeable, and not duplicated
+   on every chart page render.                                         */
+
+.enrollment-table
+{
+    border-collapse: collapse;
+    width: 90%;
+    margin: 30px auto;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 13px;
+}
+
+.enrollment-table th,
+.enrollment-table td
+{
+    border: 1px solid #999;
+    padding: 5px 8px;
+    text-align: center;
+}
+
+.enrollment-table th
+{
+    background: #e6e6e6;
+    font-weight: 700;
+}
+
+.enrollment-table td:first-child
+{
+    text-align: left;
+}
+
+.enrollment-table .total-row td
+{
+    background: #f2f2f2;
+}

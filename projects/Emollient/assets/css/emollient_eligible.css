@@ -1,0 +1,502 @@
+/* ===== REPORT TABLE (WHO / Journal Style) ===== */
+
+.report-table 
+{
+    border-collapse: collapse;
+    width: 60%;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 15px;
+    color: #000;
+    table-layout: fixed;
+    margin-left: auto ;
+    margin-right: auto ;
+}
+
+/* Gap between report sections (Pages 2 and 3) */
+.section-gap
+{
+    height: 40px;
+    display: block;
+}
+
+/* Table border */
+.report-table,
+.report-table th,
+.report-table td 
+{
+    border: 1px solid #666;
+}
+
+/* caption */
+caption
+{
+	/* caption-side: top; */
+	text-align: left ;
+	/* margin-bottom: 20px ; */
+	font-weight: bold;
+	font-style: italic ;
+}
+
+caption .report-period
+{
+    display: block;
+    text-align: left;
+    font-size: 13px;
+    font-weight: bold;
+    font-style: normal;
+    color: #333;
+    margin-top: 4px;
+    margin-bottom: 2px;
+}
+
+caption .report-date 
+{
+    display: block;
+    text-align: right;
+    font-size: 8px;
+    margin-bottom: 10px ;
+}
+
+/* Header */
+.report-table thead th 
+{
+    background-color: #e6e6e6;
+    font-weight: 700;
+    text-align: center;
+    padding: 6px 4px;
+    vertical-align: middle;
+}
+
+/* Body cells */
+.report-table tbody td 
+{
+    padding: 5px 6px;
+    vertical-align: top;
+    text-align: right;
+}
+
+/* First column (Metric / Description) */
+.report-table tbody td:first-child,
+.report-table thead th:first-child 
+{
+    text-align: left;
+    width: 28%;
+}
+
+/* Numeric columns */
+.report-table tbody td:not(:first-child) 
+{
+    width: 9%;
+}
+
+/* Section header rows */
+.report-table .section-row td 
+{
+    font-weight: 700;
+    background-color: #f2f2f2;
+    text-align: left;
+}
+
+/* Subtle emphasis for totals */
+.report-table .total-row td 
+{
+    font-weight: 700;
+}
+
+/* Tight spacing for dense reports */
+.report-table.compact td,
+.report-table.compact th 
+{
+    padding: 4px 5px;
+}
+
+.section-main td 
+{
+    background: #d9d9d9;
+    font-weight: 700;
+}
+
+.section-sub td 
+{
+    background: #efefef;
+    font-style: italic;
+}
+
+.indent-1 td:first-child 
+{
+    padding-left: 28px;
+}
+
+/* ===== REPORT TOOLBAR ===== */
+
+.report-toolbar
+{
+    width: 60%;
+    margin: 20px auto 10px auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 13px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* Left group: back link + report title */
+.toolbar-left
+{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.toolbar-home-link
+{
+    font-size: 12px;
+    color: #666;
+    text-decoration: none;
+}
+
+.toolbar-home-link:hover
+{
+    color: #333;
+    text-decoration: underline;
+}
+
+.toolbar-title
+{
+    font-weight: bold;
+    color: #333;
+    align-self: center;
+}
+
+.toolbar-actions
+{
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    align-self: flex-end;
+    padding-bottom: 2px;
+}
+
+/* Section export row sits below the main toolbar row */
+.toolbar-sections
+{
+    margin-top: 4px;
+    align-self: flex-start;
+}
+
+.toolbar-section-label
+{
+    font-size: 11px;
+    color: #888;
+    align-self: center;
+}
+
+.toolbar-btn
+{
+    display: inline-block;
+    padding: 5px 12px;
+    border: 1px solid #666;
+    background: #f2f2f2;
+    color: #000;
+    text-decoration: none;
+    font-size: 12px;
+    font-family: Arial, Helvetica, sans-serif;
+    cursor: pointer;
+}
+
+.toolbar-btn:hover
+{
+    background: #e0e0e0;
+}
+
+/* Print optimization */
+@media print
+{
+    .report-toolbar { display: none; }
+
+    .report-table
+    {
+        font-size: 11px;
+        width: 100%;
+    }
+
+    .report-table thead th
+    {
+        background-color: #dcdcdc !important;
+    }
+
+    .consort
+    {
+        width: 100%;
+    }
+}
+
+
+
+/* ===== CONSORT FLOW DIAGRAM ===== */
+
+.consort
+{
+    width: 60%;
+    margin: 30px auto;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 14px;
+    color: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+
+/* ── Main flow column ── */
+.consort-flow
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: 0;
+}
+
+/* Boxes for prescreened / screened / eligible */
+.consort-box
+{
+    width: 55%;
+    border: 1.5px solid #333;
+    background: #f2f2f2;
+    font-weight: 700;
+    text-align: center;
+    padding: 10px 14px;
+}
+
+/* Vertical connector line between boxes */
+.consort-arrow
+{
+    width: 0;
+    height: 22px;
+    border-left: 1.5px solid #333;
+    position: relative;
+}
+
+/* Arrowhead at bottom of connector */
+.consort-arrow::after
+{
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: -5px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid #333;
+}
+
+/* ── Exclusion row (horizontal branch + exclusion box) ── */
+.consort-branch-row
+{
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+    position: relative;
+}
+
+/* Horizontal line leading to exclusion box */
+.consort-branch-line
+{
+    flex: 1;
+    height: 1.5px;
+    background: #333;
+    margin-top: 18px;   /* aligns with mid-height of exclusion box */
+    margin-left: 27.5%; /* starts from right edge of main flow column */
+}
+
+/* Exclusion box */
+.consort-exclude
+{
+    width: 38%;
+    border: 1.5px solid #333;
+    background: #fff;
+    padding: 8px 10px;
+    font-size: 13px;
+}
+
+.consort-exclude ul
+{
+    margin: 4px 0 0 0;
+    padding-left: 16px;
+}
+
+.consort-exclude li
+{
+    margin-bottom: 2px;
+}
+
+/* Print */
+@media print
+{
+    .consort
+    {
+        font-size: 11px;
+    }
+}
+
+
+/* ===== MONTHLY DASHBOARD ===== */
+
+.dashboard-wrap
+{
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+
+.dashboard-title
+{
+    font-size: 16px;
+    color: #1a1a2e;
+    margin-bottom: 16px;
+}
+
+.dashboard-title .report-date
+{
+    display: block;
+    font-size: 11px;
+    font-weight: normal;
+    color: #666;
+    margin-top: 4px;
+}
+
+.dashboard-table
+{
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 12px;
+    margin-top: 30px;
+}
+
+.dashboard-table caption
+{
+    text-align: left;
+    font-weight: bold;
+    font-style: italic;
+    margin-bottom: 6px;
+}
+
+.dashboard-table th,
+.dashboard-table td
+{
+    border: 1px solid #999;
+    padding: 5px 8px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.dashboard-table th
+{
+    background: #e6e6e6;
+    font-weight: 700;
+}
+
+.dashboard-table td:first-child
+{
+    text-align: left;
+    min-width: 130px;
+}
+
+.dashboard-table .total-row td
+{
+    background: #f2f2f2;
+}
+
+@media print
+{
+    .dashboard-table
+    {
+        font-size: 10px;
+    }
+}
+
+/* ===== FORM COMPLETION REPORT ===== */
+
+/* Override the base report-table fixed layout — completion tables have
+   many columns of mixed width and must size to their content.         */
+.completion-table
+{
+    width: 90%;
+    font-size: 13px;
+    table-layout: auto;   /* let browser/PDF size columns to content */
+}
+
+.completion-table th,
+.completion-table td
+{
+    font-size: 13px;
+    word-wrap: normal;    /* do not break cell content mid-word */
+    overflow-wrap: normal;
+}
+
+/* Cells that should never wrap */
+.completion-table td.nowrap,
+.completion-table th
+{
+    white-space: nowrap;
+}
+
+/* Missing Days column — allow wrapping on comma+space only */
+.completion-table td:last-child
+{
+    white-space: normal;
+    word-break: keep-all;
+    min-width: 60px;
+}
+
+@media print
+{
+    .completion-table
+    {
+        font-size: 10px;
+        width: 100%;
+        table-layout: auto;
+    }
+
+    .completion-table th,
+    .completion-table td
+    {
+        padding: 3px 4px;
+        white-space: nowrap;
+        word-wrap: normal;
+        overflow-wrap: normal;
+    }
+
+    /* Only the last column (Missing Days) may wrap in print */
+    .completion-table td:last-child
+    {
+        white-space: normal;
+        word-break: keep-all;
+    }
+}
+
+/* Demographics continuous stats — keep IQR / Min–Max on one line */
+.report-table td small {
+    font-size: 10px;
+    white-space: nowrap;
+    display: block;
+    line-height: 1.4;
+}
+
+/* RAG status cells */
+.rag-green { background: #e8f5e9 !important; color: #2e7d32; }
+.rag-amber { background: #fff8e1 !important; color: #f57f17; }
+.rag-red   { background: #ffebee !important; color: #c62828; }
+
+/* RAG legend below site summary table */
+.rag-legend
+{
+    width: 90%;
+    margin: 8px auto;
+    font-size: 12px;
+    color: #555;
+}
+.rag-legend .rag-green { background: none !important; color: #2e7d32; }
+.rag-legend .rag-amber { background: none !important; color: #f57f17; }
+.rag-legend .rag-red   { background: none !important; color: #c62828; }

@@ -1,0 +1,28 @@
+{
+    "name": "cel/platform",
+    "description": "CEL Platform — Reporting Engine",
+    "type": "project",
+    "require": {
+        "php": ">=8.1",
+        "phpoffice/phpspreadsheet": "^5.7",
+        "vlucas/phpdotenv": "^5.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "CEL\\Shared\\":              "shared-lib/src/",
+            "CEL\\Reporting\\":           "reporting-engine/",
+            "CEL\\Projects\\Emollient\\": "projects/Emollient/",
+            "CEL\\Projects\\CAR\\":       "projects/CAR/",
+            "CEL\\Projects\\IKMC\\":      "projects/iKMC/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "platform": {
+            "php": "8.1"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

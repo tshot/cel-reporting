@@ -1,0 +1,99 @@
+<?php
+
+/**
+ * sync_config.php — iKMC Project
+ *
+ * MSSQL → MySQL sync configuration.
+ * Lives at: /var/www/projects/iKMC/sync_config.php
+ *
+ * DO NOT commit credentials to version control.
+ * Add sync_config.php to .gitignore.
+ */
+
+return [
+
+    // ── MSSQL (source) ────────────────────────────────────────────────────────
+    'mssql' => [
+        'dsn'      => 'sqlsrv:Server=175.101.46.224,1433;Database=ikmc;TrustServerCertificate=yes;LoginTimeout=30',
+        // Alternative for older servers:
+        // 'dsn'   => 'dblib:host=YOUR_SERVER:1433;dbname=YOUR_DB',
+        'user'     => 'CHANGEME',
+        'password' => 'CHANGEME',
+    ],
+
+    // ── MySQL (destination) ───────────────────────────────────────────────────
+    'mysql' => [
+        'dsn'      => 'mysql:host=localhost;dbname=iKMC_ver2_Raw;charset=utf8mb4',
+        'user'     => 'CHANGEME',
+        'password' => 'CHANGEME',
+    ],
+
+    // ── Table discovery whitelist ─────────────────────────────────────────────
+    // When running --list-tables, only these MSSQL tables will be shown.
+    // Use schema.table format exactly as returned by --list-tables.
+    // Leave empty [] to show ALL tables (useful when first exploring the DB).
+    // Once you know which tables you need, add them here to filter the noise.
+    'discover' => [
+        // 'dbo.Patients',
+        // 'dbo.StudyVisits',
+        // 'dbo.LabResults',
+    ],
+
+    // ── Sync options (applied to all tables unless overridden per table) ──────
+    'defaults' => [
+        'mode'       => 'upsert',   // 'upsert' | 'replace' | 'insert_ignore'
+        'chunk_size' => 500,
+        'dry_run'    => false,
+    ],
+
+    // ── Table map ─────────────────────────────────────────────────────────────
+    // Each entry defines one table to sync.
+    //
+    // Keys:
+    //   src       — source table (include schema: 'dbo.table_name')
+    //   dst       — destination MySQL table
+    //   pk        — primary key column for upsert conflict detection
+    //   map       — [ 'src_col' => 'dst_col' ] column mapping.
+    //               Omit to auto-detect all columns (same names src→dst).
+    //   where     — optional WHERE clause on the source query
+    //   order_by  — column to order by (required for reliable chunking)
+    //   transform — optional PHP callable to transform each row before insert
+    // ─────────────────────────────────────────────────────────────────────────
+
+    'tables' => [
+
+        // Add real table entries here after running --list-tables to get correct names.
+        // Example:
+        // [
+        //     'src'      => 'dbo.ActualTableName',
+        //     'dst'      => 'mysql_table_name',
+        //     'pk'       => 'primary_key_column',
+        //     'order_by' => 'primary_key_column',
+        // ],
+        [
+			'src'      => 'dbo.eligibility',
+			'dst'      => 'iKMCv2_EligibilityRegistration',
+			'pk'       => 'recordid',          // replace 'id' with the actual primary key column name in dbo.eligibility
+			'order_by' => 'recordid',          // same — replace with actual PK
+		],
+		[
+			'src'      => 'dbo.mb_registration',
+			'dst'      => 'iKMCv2_MotherBabyRegistration',
+			'pk'       => 'recordid',          // replace 'id' with the actual primary key column name in dbo.eligibility
+			'order_by' => 'recordid',          // same — replace with actual PK
+		],
+		[
+			'src'      => 'dbo.daily_care',
+			'dst'      => 'iKMCv2_DailyCareTracking',
+			'pk'       => 'ff_id',          // replace 'id' with the actual primary key column name in dbo.eligibility
+			'order_by' => 'ff_id',          // same — replace with actual PK
+		],
+		[
+			'src'      => 'dbo.discharge',
+			'dst'      => 'iKMCv2_Discharge',
+			'pk'       => 'recordid',          // replace 'id' with the actual primary key column name in dbo.eligibility
+			'order_by' => 'recordid',          // same — replace with actual PK
+		],
+
+    ],
+];

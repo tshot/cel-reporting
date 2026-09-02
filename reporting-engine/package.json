@@ -1,0 +1,12 @@
+{
+    "name": "cel-reporting-engine",
+    "version": "1.0.0",
+    "description": "PDF generation for CEL Reporting Engine",
+    "private": true,
+    "scripts": {
+        "pdf-test": "node src/pdf/puppeteer-pdf.js"
+    },
+    "dependencies": {
+        "puppeteer": "^22.15.0"
+    }
+}
