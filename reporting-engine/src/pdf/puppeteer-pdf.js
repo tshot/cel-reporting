@@ -21,6 +21,8 @@
 // Resolve Puppeteer - try local install first, fallback to parent node_modules
 // ---------------------------------------------------------------------------
 var fs = require('fs');
+var os = require('os');
+var path = require('path');
 var path = require('path');
 var puppeteer;
 try 
@@ -101,7 +103,7 @@ function launchBrowser()
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-crashpad',
-            '--user-data-dir=' + require('path').join(__dirname, '..', '..', 'var', 'chromium')]
+            '--user-data-dir=' + path.join(__dirname, '..', '..', 'var', 'chromium')]
     };
 
     // Use the system Chrome when it exists (dev machines); otherwise fall
@@ -111,6 +113,21 @@ function launchBrowser()
     if (fs.existsSync('/usr/bin/google-chrome')) {
         opts.executablePath = '/usr/bin/google-chrome';
     }
+
+    // Chromium's crashpad handler needs a writable HOME, and it will not
+    // accept the same path as --user-data-dir. Under Apache the browser runs
+    // as www-data, whose HOME is /var/www and is not writable, so crashpad
+    // fails and the launch aborts. The directory is namespaced per user
+    // because the first user to run it creates the subdirectories mode 700
+    // and every other user then fails -- on dev this script is run both as
+    // the developer and, via Apache, as www-data. Created on demand so no
+    // deployment step is needed.
+    var chromeHome = path.join(
+        __dirname, '..', '..', 'var',
+        'chromium-home-' + (os.userInfo().username || 'default')
+    );
+    fs.mkdirSync(chromeHome, { recursive: true });
+    process.env.HOME = chromeHome;
 
     return puppeteer.launch(opts);
 }
