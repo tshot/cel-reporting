@@ -19,6 +19,12 @@ class MssqlSyncClient
     private \PDO   $dst;
     private Logger $log;
 
+    /** Source columns of type uniqueidentifier, keyed by name. See detectColumns(). */
+    private array $guidCols = [];
+
+    /** Source date/time columns => the CONVERT style that yields ISO output. */
+    private array $dateCols = [];
+
     // =========================================================================
     // Construction
     // =========================================================================
@@ -177,7 +183,19 @@ class MssqlSyncClient
     ): array {
         $cols   = empty($srcCols)
             ? '*'
-            : implode(', ', array_map(fn($c) => "[{$c}]", $srcCols));
+            : implode(', ', array_map(
+                function ($c) {
+                    if (isset($this->guidCols[$c])) {
+                        return "CONVERT(CHAR(36), [{$c}]) AS [{$c}]";
+                    }
+                    if (isset($this->dateCols[$c])) {
+                        [$cast, $style] = $this->dateCols[$c];
+                        return "CONVERT({$cast}, [{$c}], {$style}) AS [{$c}]";
+                    }
+                    return "[{$c}]";
+                },
+                $srcCols
+              ));
         $where  = $opts['where']    ? "WHERE {$opts['where']}"    : '';
         $order  = $opts['order_by'] ? "ORDER BY {$opts['order_by']}" : 'ORDER BY (SELECT NULL)'; // OFFSET FETCH requires ORDER BY in MSSQL
 
@@ -265,13 +283,42 @@ class MssqlSyncClient
         $tableName = count($parts) === 2 ? $parts[1] : $parts[0];
 
         $stmt = $this->src->prepare(
-            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+            "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
              WHERE TABLE_SCHEMA = :schema
                AND TABLE_NAME   = :table
              ORDER BY ORDINAL_POSITION"
         );
         $stmt->execute([':schema' => $schema, ':table' => $tableName]);
-        $rows = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+        $all  = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $rows = array_column($all, 'COLUMN_NAME');
+
+        // FreeTDS returns uniqueidentifier as 16 raw bytes, not as a formatted
+        // GUID string — pdo_sqlsrv formats it, FreeTDS does not. Inserting
+        // those bytes into a char(36) column fails with MySQL error 1366,
+        // reported misleadingly as SQLSTATE 22007 (invalid datetime format).
+        // Record the GUID columns so the SELECT can CONVERT them server-side.
+        // FreeTDS renders temporal types in Sybase's default format
+        // ('Dec 17 2025 12:00:00:AM'), which MySQL rejects with error 1292.
+        // pdo_sqlsrv rendered ISO, which is why this only appeared after the
+        // driver change. CONVERT styles: 121 = yyyy-mm-dd hh:mi:ss.mmm,
+        // 23 = yyyy-mm-dd, 108 = hh:mi:ss.
+        $styles = [
+            'date'           => ['CHAR(10)', 23],
+            'time'           => ['CHAR(8)',  108],
+            'datetime'       => ['CHAR(23)', 121],
+            'datetime2'      => ['CHAR(23)', 121],
+            'smalldatetime'  => ['CHAR(23)', 121],
+            'datetimeoffset' => ['CHAR(23)', 121],
+        ];
+
+        foreach ($all as $col) {
+            $type = strtolower($col['DATA_TYPE']);
+            if ($type === 'uniqueidentifier') {
+                $this->guidCols[$col['COLUMN_NAME']] = true;
+            } elseif (isset($styles[$type])) {
+                $this->dateCols[$col['COLUMN_NAME']] = $styles[$type];
+            }
+        }
 
         if (empty($rows)) {
             throw new \RuntimeException(
