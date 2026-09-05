@@ -13,3 +13,6 @@ chrome/
 reporting-engine/chrome/
 .cache/
 projects/iKMC/sync_config.php
+*.bak*
+*.orig*
+*.rej*
