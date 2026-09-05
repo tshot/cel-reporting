@@ -120,16 +120,29 @@ class RedcapApiClient
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => http_build_query($post),
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT => 60,
         ]);
 
         $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-        if ($response === false) 
+        if ($response === false)
         {
-            throw new \Exception(curl_error($ch));
+            throw new \RuntimeException('REDCap cURL error: ' . curl_error($ch));
         }
 
-        // curl_close($ch);
+        // Without this the body of an error response is returned as though the
+        // call succeeded: json_decode then yields null and the caller reports
+        // its own symptom. A 429 IP ban surfaced as "Unable to determine
+        // primary key from metadata" for several hours.
+        if ($httpCode >= 400)
+        {
+            throw new \RuntimeException(
+                'REDCap HTTP ' . $httpCode . ': '
+                . substr(strip_tags($response), 0, 200)
+            );
+        }
 
         return $response;
     }
@@ -206,9 +219,19 @@ class RedcapApiClient
 
 		$metadata = $this->fetchMetadata();
 
-		if (empty($metadata)) 
+		// REDCap answers a bad or revoked token with HTTP 200 and an error
+		// object in the body, so the status check in post() cannot catch it.
+		if (isset($metadata['error']))
 		{
-			throw new \Exception("Unable to determine primary key from metadata.");
+			throw new \RuntimeException('REDCap API error: ' . $metadata['error']);
+		}
+
+		if (empty($metadata) || !isset($metadata[0]['field_name']))
+		{
+			throw new \RuntimeException(
+				'Unable to determine primary key: REDCap returned '
+				. substr(json_encode($metadata), 0, 200)
+			);
 		}
 
 		$this->primaryKey = $metadata[0]['field_name'];
