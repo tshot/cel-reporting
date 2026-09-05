@@ -32,6 +32,17 @@ defined('DAILY_COMPLETION_EVENTS') || define('DAILY_COMPLETION_EVENTS',
     array_merge(['day0_arm_1'], STOP_EVENTS, DAILY_EVENTS)
 );
 
+/*
+|--------------------------------------------------------------------------
+| Study start — earliest site_start across all sites (see site_targets.php).
+| Reports that should default to the whole study to date use STUDY_START to
+| date('Y-m-d'), so the window grows as the study runs. A fixed end date is
+| how these definitions previously froze at February 2026 and silently hid
+| every month after it. Any of these is overridden by ?date_from= / ?date_to=.
+|--------------------------------------------------------------------------
+*/
+defined('STUDY_START') || define('STUDY_START', '2025-09-25');
+
 
 return [
 
@@ -80,8 +91,8 @@ return [
         'group' => 'Diagnostics & Exports',
         'mode'       => 'aggregate',
         'aggregator' => 'enrollment_diagnostic',
-        'date_from'  => '2026-02-01',
-        'date_to'    => '2026-02-28',
+        'date_from'  => STUDY_START,
+        'date_to'    => date('Y-m-d'),
         'fields'     => ['enr_datetime', 'enr_baby_dob', 'enr_consent_granted', 'enr_hosp_code'],
         'events'     => ['day0_arm_1'],
     ],
@@ -105,7 +116,8 @@ return [
         'aggregator'       => 'eligibility',
         'exporter'         => 'eligibility',
         'site_code_field'  => 'baby_hosp_code',
-        'date_to'          => '2026-03-08',
+        'date_from'        => STUDY_START,
+        'date_to'          => date('Y-m-d'),
         // CSV not supported — formatted 3-page report, not tabular data
         'formats'          => ['html', 'download_html', 'pdf', 'section'],
         // Page 3 categorical field labels (SES values inside each record)
@@ -525,7 +537,8 @@ return [
         'group' => 'Diagnostics & Exports',
         'mode'       => 'aggregate',
         'aggregator' => 'eligibility_diagnostic',
-        'date_to'    => '2026-03-10',
+        'date_from'  => STUDY_START,
+        'date_to'    => date('Y-m-d'),
         'forms'      => ['baby_prescreening_and_screening_form'],
         'events'     => ['day0_arm_1'],
         'fields'     => [
@@ -550,8 +563,8 @@ return [
         'aggregator'      => 'monthly_enrollment',
         'exporter'        => 'monthly_dashboard',
         'site_code_field' => 'enr_hosp_code',
-        'date_from'       => '2026-02-01',
-        'date_to'         => '2026-02-28',
+        'date_from'       => date('Y-m-01'),
+        'date_to'         => date('Y-m-t'),
         'fields'          => [
             'enr_datetime','enr_consent_granted','enr_hosp_code',
             'dis_datetime','dis_discharge_type','int_no_emol_reason',
@@ -565,8 +578,8 @@ return [
         'exporter'         => 'weekly_chart',
         'site_code_field'  => 'enr_hosp_code',
         'site_labels_path' => __DIR__ . '/site_labels.php',
-        'date_from' => '2026-02-01',
-        'date_to'   => '2026-02-28',
+        'date_from' => STUDY_START,
+        'date_to'   => date('Y-m-d'),
         'fields'    => ['enr_datetime', 'enr_baby_dob', 'enr_consent_granted', 'enr_hosp_code'],
     ],
 
@@ -577,8 +590,8 @@ return [
         'exporter'         => 'monthly_chart',
         'site_code_field'  => 'enr_hosp_code',
         'site_labels_path' => __DIR__ . '/site_labels.php',
-        'date_from' => '2025-09-01',
-        'date_to'   => '2026-02-28',
+        'date_from' => STUDY_START,
+        'date_to'   => date('Y-m-d'),
         'fields'    => ['enr_datetime', 'enr_baby_dob', 'enr_consent_granted', 'enr_hosp_code'],
     ],
 

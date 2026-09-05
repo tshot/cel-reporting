@@ -442,7 +442,7 @@ class ReportController
         $pdfBtn = '';
         if (in_array('pdf', $supported, true)) {
             $pdfBtn = str_contains($report, 'MonthlyEnrollmentChart')
-                ? "<button onclick='var v=document.querySelector(\"[data-view].active\")?.dataset?.view||\"stacked\";window.location=\"{$base}&format=pdf&view=\"+v;' class='toolbar-btn'>&#8659; PDF</button>"
+                ? "<button onclick='var v=document.querySelector(\"[data-view].active\")?.dataset?.view||\"stacked\";window.location=\"{$base}&format=pdf{$filterQs}&view=\"+v;' class='toolbar-btn'>&#8659; PDF</button>"
                 : "<a href='{$base}&format=pdf{$filterQs}' class='toolbar-btn'>&#8659; PDF</a>";
         }
 
