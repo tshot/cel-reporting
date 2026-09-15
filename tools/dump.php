@@ -12,7 +12,7 @@
  *   php tools/dump.php --project=Emollient --report=WideDumpNoRepeat --output=/tmp/wide_norepeat.csv
  * 
  * --- with paths 
- * # No --output: writes to /var/www/tools/output/WideDump_2026-03-15.csv (auto-created)
+ * # No --output: writes to reports/tools/output/WideDump_2026-03-15.csv (auto-created)
  *	php tools/dump.php --project=Emollient --report=WideDump
 
  *	# Relative path: resolved from wherever you run the command
@@ -59,17 +59,23 @@ if ($toBytes(ini_get('memory_limit')) < 1024 ** 3)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Locate the reporting-engine root (tools/ is alongside reporting-engine/)
-$engineRoot = realpath(__DIR__ . '/../reporting-engine');
+// tools/ sits at the repo root alongside reporting-engine/, shared-lib/,
+// projects/ and vendor/. Composer's autoloader is at the REPO ROOT — the
+// same one reporting-engine/public/index.php requires.
+$repoRoot = dirname(__DIR__);
 
-if (!$engineRoot || !file_exists($engineRoot . '/vendor/autoload.php'))
+if (!is_file($repoRoot . '/vendor/autoload.php'))
 {
-    fwrite(STDERR, "ERROR: Cannot find reporting-engine/vendor/autoload.php\n");
-    fwrite(STDERR, "       Run 'composer install' inside reporting-engine/ first.\n");
+    fwrite(STDERR, "ERROR: Cannot find {$repoRoot}/vendor/autoload.php\n");
+    fwrite(STDERR, "       Run 'composer install' in {$repoRoot}\n");
     exit(1);
 }
 
-require $engineRoot . '/vendor/autoload.php';
+require $repoRoot . '/vendor/autoload.php';
+
+// Load .env before anything reads $_ENV — same as reporting-engine/public/index.php.
+// Credentials live there, never in code. CLI scripts must do this explicitly.
+Dotenv\Dotenv::createImmutable($repoRoot)->safeLoad();
 
 use CEL\Reporting\Application\ReportFacade;
 use CEL\Shared\Domain\Export\CsvExporter;

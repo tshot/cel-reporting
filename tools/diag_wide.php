@@ -3,7 +3,7 @@
 /**
  * tools/diag_wide.php — Diagnose a wide-mode report
  *
- * Usage (from /var/www):
+ * Usage (from the repo root, e.g. /var/www/reports):
  *   php tools/diag_wide.php --project=Emollient --report=EmolliationWide
  *
  * Prints: row count, column count, repeat map, first 3 column names,
@@ -34,8 +34,23 @@ if ($toBytes(ini_get('memory_limit')) < 1024 ** 3)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-$engineRoot = realpath(__DIR__ . '/../reporting-engine');
-require $engineRoot . '/vendor/autoload.php';
+// tools/ sits at the repo root alongside reporting-engine/, shared-lib/,
+// projects/ and vendor/. Composer's autoloader is at the REPO ROOT — the
+// same one reporting-engine/public/index.php requires.
+$repoRoot = dirname(__DIR__);
+
+if (!is_file($repoRoot . '/vendor/autoload.php'))
+{
+    fwrite(STDERR, "ERROR: Cannot find {$repoRoot}/vendor/autoload.php\n");
+    fwrite(STDERR, "       Run 'composer install' in {$repoRoot}\n");
+    exit(1);
+}
+
+require $repoRoot . '/vendor/autoload.php';
+
+// Load .env before anything reads $_ENV — same as reporting-engine/public/index.php.
+// Credentials live there, never in code. CLI scripts must do this explicitly.
+Dotenv\Dotenv::createImmutable($repoRoot)->safeLoad();
 
 use CEL\Shared\Infrastructure\Redcap\RedcapApiClient;
 use CEL\Shared\Domain\Metadata\WideColumnBlueprintBuilder;
@@ -45,9 +60,36 @@ $opts    = getopt('', ['project:', 'report:']);
 $project = $opts['project'] ?? 'Emollient';
 $report  = $opts['report']  ?? 'EmolliationWide';
 
-$projectsRoot = realpath($engineRoot . '/../projects');
-$definition   = (require "{$projectsRoot}/{$project}/reports.php")[$report];
-$cfg          = require "{$projectsRoot}/{$project}/config.php";
+$projectsRoot = $repoRoot . '/projects';
+
+$reportsFile = "{$projectsRoot}/{$project}/reports.php";
+$configFile  = "{$projectsRoot}/{$project}/config.php";
+
+foreach ([$reportsFile, $configFile] as $f)
+{
+    if (!is_file($f))
+    {
+        fwrite(STDERR, "ERROR: Not found: {$f}\n");
+        fwrite(STDERR, "       Check --project={$project} is spelled correctly.\n");
+        exit(1);
+    }
+}
+
+$allReports = require $reportsFile;
+
+if (!isset($allReports[$report]))
+{
+    fwrite(STDERR, "ERROR: Report '{$report}' is not defined in {$reportsFile}\n\n");
+    fwrite(STDERR, "Available reports in {$project}:\n");
+    foreach (array_keys($allReports) as $name)
+    {
+        fwrite(STDERR, "  - {$name}\n");
+    }
+    exit(1);
+}
+
+$definition = $allReports[$report];
+$cfg        = require $configFile;
 
 $client = new RedcapApiClient($cfg['api_url'], $cfg['token']);
 
