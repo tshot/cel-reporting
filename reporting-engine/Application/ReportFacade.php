@@ -209,12 +209,32 @@ class ReportFacade
             {
                 // ── Build repeat map ───────────────────────────────────────
                 // We need to know how many instances each repeating form has
-                // before building the column blueprint. This requires a full
-                // pass through the data, so we buffer it first.
-                $lap('buffer stream for repeat detection');
-                $buffered  = iterator_to_array($stream, false);
+                // before building the column blueprint, which means a full
+                // pass through the data. It does NOT mean holding that data.
+                //
+                // detectRepeatStructure() reads only redcap_event_name,
+                // redcap_repeat_instrument and redcap_repeat_instance, so the
+                // detection pass does not need the data. It does, however,
+                // need REDCap to EMIT the repeat rows, and REDCap only emits
+                // a repeating form's instance rows when a field belonging to
+                // that form is requested.
+                //
+                // Requesting the primary key alone is therefore NOT enough:
+                // record_id lives on a non-repeating form, so no instance rows
+                // come back and every repeat map is empty. Ask for one field
+                // per form instead — tens of fields rather than hundreds, so
+                // rows stay small and memory stays flat.
+                //
+                // Buffering the full-width rows here previously exhausted 8 GB
+                // on a 10,649-record project with all forms selected.
+                $lap('repeat detection pass (one field per form)');
                 $repeatMap = $this->detectRepeatStructure(
-                    new \ArrayIterator($buffered),
+                    $client->stream(
+                        $this->detectionFields($metadata, $filterForms, $primaryKey),
+                        $filterForms,
+                        $filterEvents,
+                        $chunkSize
+                    ),
                     $filterForms ?: null
                 );
                 $lap('repeat map built: ' . count($repeatMap) . ' event(s) with repeats');
@@ -233,12 +253,9 @@ class ReportFacade
 
             $lap('blueprint built: ' . count($blueprint['columns']) . ' columns');
 
-            // Buffered path reuses the in-memory copy; streaming path keeps the
-            // live generator so memory stays flat.
-            if (!$skipRepeats)
-            {
-                $stream = new \ArrayIterator($buffered);
-            }
+            // $stream (created above) is a lazy generator that has not been
+            // iterated — the detection pass used its own separate stream — so
+            // the transform below consumes it fresh. Nothing is buffered.
         }
 
         $transformer = TransformerFactory::create(
@@ -438,6 +455,43 @@ class ReportFacade
                 "date_from ({$dateFrom}) must not be later than date_to ({$dateTo})."
             );
         }
+    }
+
+    /**
+     * One field per form, for the repeat-detection pass.
+     *
+     * REDCap only returns a repeating form's instance rows when a field from
+     * that form is in fields[]. Requesting just the primary key silently
+     * yields an empty repeat map and a blueprint with no instance columns.
+     *
+     * Taking the first field of every form keeps the request narrow (tens of
+     * fields, not hundreds) while guaranteeing each repeating form is
+     * represented.
+     *
+     * @param  array       $metadata     REDCap data dictionary
+     * @param  array|null  $filterForms  Forms the report restricts itself to
+     * @param  string      $primaryKey   Always included
+     * @return string[]
+     */
+    private function detectionFields(array $metadata, ?array $filterForms, string $primaryKey): array
+    {
+        $fields   = [$primaryKey];
+        $seenForm = [];
+
+        foreach ($metadata as $m)
+        {
+            $form  = $m['form_name']  ?? null;
+            $field = $m['field_name'] ?? null;
+
+            if (!$form || !$field) continue;
+            if (isset($seenForm[$form])) continue;
+            if ($filterForms && !in_array($form, $filterForms, true)) continue;
+
+            $seenForm[$form] = true;
+            $fields[]        = $field;
+        }
+
+        return array_values(array_unique($fields));
     }
 
     private function detectRepeatStructure(iterable $stream, ?array $selectedForms): array
