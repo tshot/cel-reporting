@@ -1,0 +1,124 @@
+﻿
+EmolliationCoverage — Logic and Code
+Purpose
+This is a PI-presentation report — a high-level summary designed to show investigators how well the intervention is being delivered across sites. It answers two questions:
+    • What fraction of enrolled Intervention babies received every single emolliation session (Full Intervention)? 
+    • What fraction were stopped before completing 28 days? 
+It is deliberately simpler than DailyEmolliationCompletion — no day-by-day accounting, no session counts, just a binary yes/no per baby.
+
+Computation — EmolliationCoverageAggregator
+The aggregator works in two phases: a single streaming pass to collect raw data, then a resolution pass to compute outcomes.
+Phase 1 — Streaming pass
+The aggregator iterates through every REDCap row once, routing each row to one of four buckets based on the event:
+Enrollment bucket — day0_arm_1, non-repeating rows only:
+if ($event === 'day0_arm_1'
+    && ($row['redcap_repeat_instrument'] ?? '') === '')
+{
+    $consent = $row['enr_consent_granted'] ?? '';
+    $arm     = trim($row['enr_study_arm']  ?? '');
+    $hosp    = trim($row['enr_hosp_code']  ?? '');
+
+    if (($consent === 'Y' || $consent === '1')
+        && $arm === 'Intervention'
+        && $hosp !== '')
+    {
+        $this->enrolled[$id] = true;
+        $this->site[$id]     = $hosp;
+    }
+}
+Only Intervention babies who gave consent are enrolled. Control babies are excluded entirely — they don't receive emolliation.
+Stop dates bucket — discharge_arm_1 and other_forms_arm_1:
+// Discharge
+if ($event === 'discharge_arm_1' && !empty($row['dis_datetime'])) {
+    $this->stopDates[$id]['discharge'] = $this->parseDate($row['dis_datetime']);
+}
+
+// Protocol deviation / withdrawal / SAE
+foreach (['deviation'=>'pd_datetime', 'withdrawal'=>'sw_datetime', 'sae'=>'sae_datetime']
+         as $reason => $field) {
+    if (!empty($row[$field]))
+        $this->stopDates[$id][$reason] = $this->parseDate($row[$field]);
+}
+Any of these four events constitutes a "stop". Multiple stop events per baby are stored — the earliest one wins during resolution.
+Sessions bucket — daily_interventionemolliation_form repeating rows across all events (day0 through day28):
+if (($row['redcap_repeat_instrument'] ?? '') === 'daily_interventionemolliation_form')
+{
+    $given = ($row['int_emoliate_baby'] ?? '') === 'Y';
+    $this->sessions[$id]['given']++;      // if Y
+    // or
+    $this->sessions[$id]['not_given']++;  // if anything else
+}
+Every repeating instance is counted — int_emoliate_baby = 'Y' means the session was administered, anything else means it was not.
+Phase 2 — Resolution pass (resolve())
+Once all rows are consumed, the aggregator iterates over every enrolled baby and computes two binary outcomes:
+Full Intervention:
+$totalSessions = $sessions['given'] + $sessions['not_given'];
+$fullInterv    = ($totalSessions > 0 && $sessions['not_given'] === 0);
+A baby qualifies as Full Intervention only if:
+    • At least one session exists (the form was opened at least once), AND 
+    • Every session that was recorded had int_emoliate_baby = 'Y' 
+If not_given > 0 even once, the baby fails. This is a strict all-or-nothing check.
+Stopped:
+$stopped    = !empty($stopDates);
+$stopReason = '';
+if ($stopped) {
+    $earliest = null;
+    foreach ($stopDates as $reason => $dt) {
+        if ($earliest === null || $dt < $earliest) {
+            $earliest   = $dt;
+            $stopReason = $reason;
+        }
+    }
+}
+Any stop event recorded = stopped. The earliest one becomes the reported reason. Note that Stopped and Full Intervention are independent — a baby discharged on Day 5 who received all sessions up to Day 5 is both Stopped AND Full Intervention.
+Site accumulation:
+foreach ([$site, 'Total'] as $grp) {
+    $bySite[$grp]['enrolled']++;
+    if ($fullInterv) $bySite[$grp]['full_interv']++;
+    if ($stopped)    $bySite[$grp]['stopped']++;
+}
+Each baby is accumulated into both their own site bucket and the Total bucket simultaneously — one loop, two writes.
+Percentages:
+$s['pct_full']    = $n > 0 ? round($s['full_interv'] / $n * 100, 1) : null;
+$s['pct_stopped'] = $n > 0 ? round($s['stopped']     / $n * 100, 1) : null;
+Both percentages use enrolled as the denominator.
+
+Display — EmolliationCoverageHtmlExporter
+The report has two sections:
+Section 1 — Site summary table (PI presentation)
+Four columns: Site, Enrolled, Received Full Intervention, Stopped.
+The percentage columns render as visual progress bars — a coloured bar whose width equals the percentage, with the number alongside:
+// Full Intervention — green bar
+<div class="pct-bar-bg">
+  <div class="pct-bar-fill green" style="width:<?= min(100, $pf) ?>%"></div>
+</div>
+<span class="pct-label green"><?= $pf ?>%</span>
+// Sub-label: "47 of 62"
+
+// Stopped — red bar
+<div class="pct-bar-fill red" style="width:<?= min(100, $ps) ?>%"></div>
+Green for Full Intervention (higher is better), red for Stopped (higher is worse). Both are capped at min(100, value) so the bar never overflows, even if data entry errors produce values above 100%.
+The Total row is placed in <tfoot> so it renders separately from site rows and stays at the bottom even when the table is sorted.
+Section 2 — Per-baby detail table
+One row per enrolled baby. Columns: Record ID, Site, Full Intervention (Yes/No badge), Stopped (Yes/No badge), Stop Reason, Sessions, Given, Not Given, % Given.
+The Yes/No badges use colour-coded CSS classes:
+$fullBadge = $full
+    ? "<span class='badge badge-yes'>Yes</span>"
+    : "<span class='badge badge-no'>No</span>";
+
+$stopBadge = $stop
+    ? "<span class='badge badge-stop'>Yes</span>"
+    : "<span class='badge badge-none'>No</span>";
+Badge class	Colour	Meaning
+badge-yes	Green	Full intervention received
+badge-no	Red	Not all sessions given
+badge-stop	Amber	Stopped before Day 28
+badge-none	Grey	Completed full 28 days
+The % Given column is a per-baby ratio: sessions_given / total_sessions × 100. This differs from Full Intervention — a baby with 95% given is not Full Intervention (because not_given > 0) but shows a high % Given. This lets investigators spot babies who are close but not perfect.
+The table has data-* attributes on each row (data-site, data-full, data-stopped, data-id) so the JavaScript filter dropdowns can show/hide rows client-side without any server round-trip:
+<tr data-site="<?= strtolower($site) ?>"
+    data-full="<?= $full ? 'yes' : 'no' ?>"
+    data-stopped="<?= $stop ? 'yes' : 'no' ?>"
+    data-id="<?= strtolower($id) ?>">
+The emol_coverage.js file reads these attributes and toggles display:none based on the selected filter values — Site dropdown, Full Intervention dropdown, Stopped dropdown, and free-text Record ID search.
+

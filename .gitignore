@@ -16,3 +16,4 @@ projects/iKMC/sync_config.php
 *.bak*
 *.orig*
 *.rej*
+tools/output/

@@ -1,0 +1,73 @@
+﻿
+
+DailyEmolliationCompletion — Calculation & Display
+What it tracks
+Emolliation must be applied to every enrolled Intervention arm baby 3 times per day (morning, afternoon, evening) for up to 28 days. The report measures how many of those expected sessions were actually completed.
+
+Computation — FormCompletionAggregator
+Step 1 — Eligibility gate
+A baby is included only if:
+    • enr_consent_granted = 'Y' or '1' — enrolled 
+    • enr_study_arm = 'Intervention' — control babies don't receive emolliation 
+    • enr_baby_dob is present — needed for day calculations 
+    • enr_datetime falls within the date filter — assigns the baby to a reporting period 
+Step 2 — Determine end day
+Unlike other forms, emolliation uses enr_datetime (not DOB) as the reference date, because emolliation only starts at the moment of enrollment:
+daysElapsed = today - enr_datetime
+endDay      = min(28, daysElapsed)
+If a stop event occurs earlier (discharge, protocol deviation, withdrawal, SAE), endDay is reduced to the day of that event.
+Step 3 — Day 0 is special
+Day 0 has a non-repeating form (day0_interventionemolliation_module) plus repeating instances of daily_interventionemolliation_form. How many sessions are expected on Day 0 depends on the field fi_emol_perid — the time of day the baby was enrolled:
+fi_emol_perid	Day 0 expected sessions
+MOR (morning)	3 (1 day0form + 2 repeating)
+AFT (afternoon)	2 (1 day0form + 1 repeating)
+EVE (evening)	1 (1 day0form + 0 repeating)
+blank	1 (safe minimum)
+Step 4 — Total expected sessions
+expected = (endDay × 3) + day0Expected
+Example: enrolled at morning, discharged on Day 4:
+expected = (4 × 3) + 3 = 15 sessions
+Step 5 — Count completed sessions
+For each day, the aggregator counts how many daily_interventionemolliation_form_complete = '2' instances exist, capped at 3 per day to prevent data-entry errors from inflating the count:
+completed = min(day0FormDone, 1)
+          + min(day0RepeatsDone, day0RepExpected)
+          + Σ min(dayComplete[d], 3)  for d = 1 to endDay
+Step 6 — Per-day status
+Each day gets one of four statuses:
+    • completed — all 3 sessions done 
+    • partial — 1 or 2 of 3 done 
+    • missing — 0 of 3 done but day is due 
+    • not_due — beyond endDay (discharged, stopped, or not yet reached) 
+Step 7 — Percentage
+pct = completed / expected × 100   (capped at 100% for normalised display)
+pct_actual = raw value (can exceed 100% if extra sessions were entered)
+
+Display — FormCompletionHtmlExporter
+The report renders three pages:
+Page 1 — Per-participant detail
+One row per baby. Columns:
+Column	What it shows
+ID	Record ID
+Site	Hospital
+Arm	Intervention (always for this report)
+DOB	Baby date of birth
+Enrolment date	enr_datetime — the reference date for day calculations
+Days Due	endDay + 1 (includes Day 0)
+End Reason	Day 28 / Discharged / Protocol Dev. / Withdrawn / SAE / Ongoing
+Stop Date	Date of the stop event
+Expected sessions	(endDay × 3) + day0Expected
+Completed sessions	Count of _complete = '2' instances capped per day
+Partial days	Days where 1–2 of 3 sessions done
+% normalised	min(100, completed/expected × 100) — shown with RAG colour
+Actual %	Raw percentage, can exceed 100%
+Missing / Pending	List in DX#Y format e.g. D3#2, D3#3, D5#1 — Day 3 instance 2 and 3 missing, Day 5 instance 1 missing. D0#day0form means the Day 0 non-repeating form is missing. D0#rep1 means a Day 0 repeating instance is missing.
+The RAG colour on the % column:
+%	Colour
+≥ 90	Green
+70–89	Amber
+< 70	Red
+Page 2 — Site summary
+Aggregates all babies per site — total enrolled, total expected sessions, total completed, overall %, and a breakdown of end reasons (how many reached Day 28 vs discharged vs stopped).
+Page 3 — Day frequency
+For each day number (0–28), shows how many babies had that day due, how many completed all 3 sessions, how many were partial, how many were missing. Useful for spotting systematic gaps on particular days across the whole study.
+
