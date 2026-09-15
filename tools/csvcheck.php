@@ -1,20 +1,23 @@
 <?php
 /**
  * csvcheck.php — count a CSV properly (handles quoted commas and newlines)
+ * NOTE: reads with escape='' (RFC 4180). PHP's fgetcsv default backslash escape
+ *       corrupts values containing a backslash.
+ *
  * Usage: php csvcheck.php /tmp/fpd.csv
  */
 $file = $argv[1] ?? exit("Usage: php csvcheck.php <file.csv>\n");
 $fh = fopen($file, 'r') ?: exit("Cannot open {$file}\n");
 ini_set('memory_limit', '2G');
 
-$header = fgetcsv($fh);
+$header = fgetcsv($fh, 0, ',', '"', '');
 $cols   = count($header);
 $rows   = 0;
 $ids    = [];
 $dupes  = [];
 $ragged = 0;
 
-while (($r = fgetcsv($fh)) !== false) {
+while (($r = fgetcsv($fh, 0, ',', '"', '')) !== false) {
     if ($r === [null]) { continue; }              // blank line
     $rows++;
     if (count($r) !== $cols) { $ragged++; }

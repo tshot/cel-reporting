@@ -1,19 +1,22 @@
 <?php
 /**
  * inspect_col1.php — what is actually in column 1, and where is the ragged row?
+ * NOTE: reads with escape='' (RFC 4180). PHP's fgetcsv default backslash escape
+ *       corrupts values containing a backslash.
+ *
  * Usage: php inspect_col1.php /tmp/fpd.csv
  */
 ini_set('memory_limit', '2G');
 $file = $argv[1] ?? exit("Usage: php inspect_col1.php <file.csv>\n");
 $fh = fopen($file, 'r') ?: exit("Cannot open\n");
 
-$header = fgetcsv($fh);
+$header = fgetcsv($fh, 0, ',', '"', '');
 $cols   = count($header);
 
 echo "header[0..3] : " . implode(' | ', array_slice($header, 0, 4)) . "\n\n";
 
 $n = 0; $samples = []; $bases = []; $ragged = [];
-while (($r = fgetcsv($fh)) !== false) {
+while (($r = fgetcsv($fh, 0, ',', '"', '')) !== false) {
     if ($r === [null]) continue;
     $n++;
     if ($n <= 10) { $samples[] = $r[0]; }

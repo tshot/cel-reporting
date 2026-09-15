@@ -8,6 +8,14 @@
  *
  * Prints: row count, column count, repeat map, first 3 column names,
  *         first baby's data for sanity check.
+ *
+ * Options:
+ *   --limit=N   buffer only the first N rows. Diagnosing structure rarely
+ *               needs the whole project, and WideDump across all forms will
+ *               otherwise exhaust memory. NOTE: with --limit the repeat map
+ *               is a LOWER BOUND, so the column count is understated.
+ *   --chunk=N   override the report's chunk_size (smaller = less JSON held
+ *               per REDCap call).
  */
 
 // Raise the limit to 1G for wide-mode buffering, but never lower an
@@ -48,15 +56,11 @@ if (!is_file($repoRoot . '/vendor/autoload.php'))
 
 require $repoRoot . '/vendor/autoload.php';
 
-// Load .env before anything reads $_ENV — same as reporting-engine/public/index.php.
-// Credentials live there, never in code. CLI scripts must do this explicitly.
-Dotenv\Dotenv::createImmutable($repoRoot)->safeLoad();
-
 use CEL\Shared\Infrastructure\Redcap\RedcapApiClient;
 use CEL\Shared\Domain\Metadata\WideColumnBlueprintBuilder;
 use CEL\Shared\Domain\Transformers\TransformerFactory;
 
-$opts    = getopt('', ['project:', 'report:']);
+$opts    = getopt('', ['project:', 'report:', 'limit::', 'chunk::']);
 $project = $opts['project'] ?? 'Emollient';
 $report  = $opts['report']  ?? 'EmolliationWide';
 
@@ -95,7 +99,8 @@ $client = new RedcapApiClient($cfg['api_url'], $cfg['token']);
 
 $filterForms  = $definition['forms']  ?? [];
 $filterEvents = $definition['events'] ?? [];
-$chunkSize    = (int)($definition['chunk_size'] ?? 200);
+$chunkSize    = (int)($opts['chunk'] ?? $definition['chunk_size'] ?? 200);
+$limit        = isset($opts['limit']) ? (int)$opts['limit'] : 0;
 
 echo "=== Fetching metadata ===\n";
 $metadata     = $client->fetchMetadata();
@@ -106,9 +111,29 @@ echo "  project events  : " . count($projectEvents) . "\n";
 echo "  form-event maps : " . count($formEventMap) . "\n";
 
 echo "\n=== Streaming records (chunk={$chunkSize}) ===\n";
-$stream   = $client->stream([], $filterForms, $filterEvents, $chunkSize);
-$buffered = iterator_to_array($stream, false);
-echo "  total rows buffered: " . count($buffered) . "\n";
+$buffered = [];
+$streamed = 0;
+
+foreach ($client->stream([], $filterForms, $filterEvents, $chunkSize) as $row)
+{
+    $streamed++;
+    $buffered[] = $row;
+
+    if ($streamed % 2000 === 0)
+    {
+        printf("  %d rows, peak memory %.0f MB\n", $streamed, memory_get_peak_usage(true) / 1048576);
+    }
+
+    if ($limit > 0 && $streamed >= $limit)
+    {
+        echo "  --limit={$limit} reached, stopping early\n";
+        echo "  *** repeat map and column count below are LOWER BOUNDS ***\n";
+        break;
+    }
+}
+
+printf("  total rows buffered: %d (peak memory %.0f MB)\n",
+    count($buffered), memory_get_peak_usage(true) / 1048576);
 
 if (empty($buffered)) {
     echo "\n*** NO ROWS RETURNED FROM REDCAP ***\n";
@@ -184,5 +209,6 @@ if (!empty($rows)) {
     }
 }
 
+printf("\nPeak memory: %.0f MB\n", memory_get_peak_usage(true) / 1048576);
 echo "\nDone.\n";
 

@@ -7,9 +7,9 @@
  * For raw data exports (CSV dumps) use: php tools/dump.php
  *
  * Usage:
- *   php cli.php --project=Emollient --report=EligibilityReport --output=report.html
- *   php cli.php --project=Emollient --report=MonthlyDashboard  --output=dashboard.html
- *   php cli.php --project=Emollient --report=EligibilityReport \
+ *   php tools/cli.php --project=Emollient --report=EligibilityReport --output=report.html
+ *   php tools/cli.php --project=Emollient --report=MonthlyDashboard  --output=dashboard.html
+ *   php tools/cli.php --project=Emollient --report=EligibilityReport \
  *               --date-from=2026-01-01 --date-to=2026-03-31 \
  *               --sites=GSVM,JSS --output=report.html
  */
@@ -17,7 +17,21 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-require __DIR__ . '/vendor/autoload.php';
+// tools/ sits at the repo root alongside reporting-engine/, shared-lib/,
+// projects/ and vendor/. Composer's autoloader is at the REPO ROOT.
+$repoRoot = dirname(__DIR__);
+
+if (!is_file($repoRoot . '/vendor/autoload.php'))
+{
+    fwrite(STDERR, "ERROR: Cannot find {$repoRoot}/vendor/autoload.php\n");
+    fwrite(STDERR, "       Run 'composer install' in {$repoRoot}\n");
+    exit(1);
+}
+
+require $repoRoot . '/vendor/autoload.php';
+
+// Load .env before anything reads $_ENV — same as reporting-engine/public/index.php.
+Dotenv\Dotenv::createImmutable($repoRoot)->safeLoad();
 
 use CEL\Reporting\Application\ReportFacade;
 use CEL\Shared\Domain\Export\CsvExporter;
@@ -38,7 +52,7 @@ $options = getopt('', [
 if (!isset($options['project']) || !isset($options['report']))
 {
     echo "Usage:\n";
-    echo "  php cli.php --project=Emollient --report=EligibilityReport --output=report.html\n";
+    echo "  php tools/cli.php --project=Emollient --report=EligibilityReport --output=report.html\n";
     echo "\nOptions:\n";
     echo "  --project     Project name (required)\n";
     echo "  --report      Report name (required)\n";
