@@ -20,7 +20,7 @@ Options:
   
   
 # Generates site_labels.php from REDCap data dictionary
-php /var/www/tools/generate_label_map.php \
+php /var/www/reports/tools/generate_label_map.php \
   --project=Emollient \
   --sites=baby_hosp_code
   
@@ -41,14 +41,14 @@ http://reports.local/index.php?project=Emollient&report=DailyMonitoringCompletio
 http://reports.local/index.php?project=Emollient&report=LengthOfStay&format=html&sites=JSS
 
 # for Emolliation flat output
-cd /var/www
+cd /var/www/reports
 php tools/dump.php --project=Emollient --report=EmolliationWide --output=/tmp/emol_wide.
 
-cd /var/www
+cd /var/www/reports
 php -d memory_limit=2G tools/dump.php --project=Emollient --report=EmolliationWide --output=/tmp/emol_wide.csv
 
 ==== debug
-cd /var/www
+cd /var/www/reports
 php tools/diag_wide.php --project=Emollient --report=EmolliationWide > /tmp/diag_output.txt 2>&1
 cat /tmp/diag_output.txt
 
@@ -123,7 +123,7 @@ It's a minimum viable trigger — one field is enough to switch REDCap into long
 
 ---
 # program to fetch specif fields
-cd /var/www
+cd /var/www/reports
 php -r "
 require 'reporting-engine/vendor/autoload.php';
 \$cfg = require 'projects/Emollient/config.php';
@@ -141,7 +141,7 @@ cat /tmp/dc_fields.txt
 
 
 # diagnostic for weekly report
-cd /var/www
+cd /var/www/reports
 php tools/diag_weekly.php --project=Emollient 2>&1 | tee /tmp/diag_weekly.txt
 
 ==========================================================

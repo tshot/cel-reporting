@@ -22,6 +22,10 @@
 #                       empty, and the order matches the engine. Without this,
 #                       a field blank for EVERY record simply does not appear,
 #                       so headers vary between extracts.
+#   --exclude=FILE      de-identification. FILE lists REDCap field names, one
+#                       per line (# comments allowed). Matching columns are
+#                       dropped BEFORE the pivot, so identifiers never enter
+#                       the wide file. Use tools/phi_fields.txt.
 #   --sample=N          only the first N record_ids, for a quick check
 # ---------------------------------------------------------------------------
 
@@ -45,6 +49,8 @@ fields_file <- files[2]
 out_file    <- files[3]
 template    <- sub("--template=", "", grep("^--template=", flags, value = TRUE))
 if (length(template) == 0) template <- NA_character_
+exclude     <- sub("--exclude=", "", grep("^--exclude=", flags, value = TRUE))
+if (length(exclude) == 0) exclude <- NA_character_
 samp        <- as.integer(sub("--sample=", "",
                  grep("^--sample=", flags, value = TRUE)))
 if (length(samp) == 0 || is.na(samp)) samp <- 0L
@@ -70,6 +76,27 @@ if (samp > 0) {
   keep <- head(unique(long$record_id), samp)
   long <- long[record_id %in% keep]
   msg("  --sample=%d -> %d rows, %d records", samp, nrow(long), length(keep))
+}
+
+# ---- de-identification: drop identifying fields before anything else --------
+if (!is.na(exclude)) {
+  if (!file.exists(exclude)) stop("exclude list not found: ", exclude)
+  phi <- readLines(exclude, warn = FALSE)
+  phi <- trimws(phi)
+  phi <- phi[nzchar(phi) & !startsWith(phi, "#")]
+  msg("De-identification: %d field(s) listed in %s", length(phi), exclude)
+
+  base <- sub("___.+$", "", names(long))
+  hit  <- base %in% phi
+  if (any(hit)) {
+    msg("  dropping %d column(s): %s", sum(hit),
+        paste(head(names(long)[hit], 8), collapse = ", "))
+    long[, (names(long)[hit]) := NULL]
+  } else {
+    msg("  no listed field present in this file")
+  }
+  absent <- setdiff(phi, base)
+  if (length(absent)) msg("  listed but absent: %d", length(absent))
 }
 
 fields <- fread(fields_file, colClasses = "character", showProgress = FALSE)

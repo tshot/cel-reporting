@@ -1,0 +1,45 @@
+# phi_fields.txt — fields removed from every export for de-identification.
+# One REDCap field name per line. Blank lines and # comments ignored.
+#
+# Matching covers all the forms a field takes in an export:
+#   fmly_mother_name
+#   day0_arm_1_family_details_and_baby_count_form_fmly_mother_name
+#   day1_arm_1_some_form_3_fmly_mother_name        (repeat instance)
+#   baby_area___1                                  (checkbox option)
+
+# --- names ---
+fmly_mother_name
+fmly_father_name
+
+# --- address at enrolment ---
+baby_state
+baby_district
+baby_pin_code
+baby_houseno_village
+baby_colony_block
+baby_area
+baby_city_town
+baby_landmark
+
+# --- contact numbers at enrolment ---
+baby_mother_mobile_no
+baby_father_mobile_no
+baby_family_mobile
+baby_rel_nbr_contact
+
+# --- address at discharge ---
+dis_state
+dis_district
+dis_pin_code
+dis_house_no
+dis_colony_block
+dis_area
+dis_city_town
+dis_landmark
+
+# --- contact numbers at discharge ---
+dis_mother_mobile_no
+dis_family_mobile_no
+dis_rel_nbr_mobile_no
+dis_primary_no
+dis_alternative_no

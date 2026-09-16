@@ -52,7 +52,41 @@ use CEL\Shared\Domain\Metadata\WideColumnBlueprintBuilder;
 
 const ESC = '';
 
-$opts    = getopt('', ['project:', 'report:', 'out:', 'chunk::', 'from-header:']);
+// Parse arguments manually. PHP's getopt() stops at the first non-option, so
+// a bare path would swallow every option after it — and silently ignoring a
+// path is exactly how a codebook ends up describing the wrong file.
+$opts       = [];
+$positional = [];
+
+foreach (array_slice($argv, 1) as $arg)
+{
+    if (preg_match('/^--([a-z-]+)(?:=(.*))?$/', $arg, $m))
+    {
+        $opts[$m[1]] = $m[2] ?? true;
+    }
+    else
+    {
+        $positional[] = $arg;
+    }
+}
+
+if ($positional !== [])
+{
+    if (count($positional) === 1 && !isset($opts['from-header']) && is_file($positional[0]))
+    {
+        $opts['from-header'] = $positional[0];
+        fwrite(STDERR, "Note: treating '{$positional[0]}' as --from-header\n\n");
+    }
+    else
+    {
+        fwrite(STDERR, "ERROR: unrecognised argument(s): " . implode(' ', $positional) . "\n\n");
+        fwrite(STDERR, "Usage:\n");
+        fwrite(STDERR, "  php tools/make_codebook.php --project=Emollient --from-header=wide.csv --out=/tmp/emol\n");
+        fwrite(STDERR, "  php tools/make_codebook.php --project=Emollient --report=WideDump --out=/tmp/emol\n");
+        exit(1);
+    }
+}
+
 $project = $opts['project'] ?? 'Emollient';
 $report  = $opts['report']  ?? 'WideDump';
 $out     = $opts['out']     ?? '/tmp/' . $project . '_' . $report;
@@ -82,7 +116,18 @@ $filterEvents = $definition['events'] ?? [];
 $chunkSize    = (int)($opts['chunk'] ?? $definition['chunk_size'] ?? 200);
 
 echo "Project : {$project}\n";
-echo $fromHdr !== null ? "Source  : header of {$fromHdr}\n\n" : "Report  : {$report}\n\n";
+if ($fromHdr !== null)
+{
+    echo "Mode    : FROM HEADER — describes the file you have\n";
+    echo "Source  : {$fromHdr}\n\n";
+}
+else
+{
+    echo "Mode    : BLUEPRINT — predicts columns from the data dictionary\n";
+    echo "Report  : {$report}\n";
+    echo "          NOTE: this does NOT reflect a de-identified or filtered file.\n";
+    echo "          Use --from-header=<your.csv> to describe an actual export.\n\n";
+}
 
 $metadata      = $client->fetchMetadata();
 $projectEvents = $client->fetchEvents();
@@ -205,6 +250,7 @@ fputcsv($cb, ['column_name','event','form','instance','field_name','question_lab
 
 $labels  = [];
 $unknown = 0;
+$noLabel = 0;
 
 foreach ($cols as $col)
 {
@@ -227,17 +273,24 @@ foreach ($cols as $col)
     $optStr = '';
     foreach ($choices as $code => $meaning) { $optStr .= "{$code} = {$meaning}; "; }
 
-    fputcsv($cb, [
+    // Collapse whitespace in every cell. Branching logic in particular often
+    // spans several lines in REDCap, and an embedded newline makes the CSV
+    // record span physical lines — which breaks wc -l, head, grep and every
+    // other line-oriented tool the analyst will reach for.
+    $flat = static fn ($v) => trim(preg_replace('/\s+/', ' ', (string)$v));
+
+    fputcsv($cb, array_map($flat, [
         $col, $event, $form, $instance, $field, $label,
         $m['field_type'] ?? '', $cbOpt, rtrim($optStr, '; '),
         $m['text_validation_type_or_show_slider_number'] ?? '',
         ($m['required_field'] ?? '') === 'y' ? 'yes' : '',
-        trim((string)($m['branching_logic'] ?? '')),
-    ], ',', '"', ESC);
+        $m['branching_logic'] ?? '',
+    ]), ',', '"', ESC);
 
     // human label for the label row; keep event+instance so it stays unique
     $prefix = $event !== '' ? $event : '';
     if ($instance !== '') { $prefix .= " #{$instance}"; }
+    if ($label === '') { $noLabel++; }
     $labels[] = $label === '' ? $col : trim($prefix . ' — ' . $label);
 }
 fclose($cb);
@@ -257,7 +310,9 @@ foreach ($metadata as $m)
     $lab = trim(preg_replace('/\s+/', ' ', strip_tags((string)($m['field_label'] ?? ''))));
     foreach ($choices as $code => $meaning)
     {
-        fputcsv($ch, [$m['field_name'], $m['form_name'], $lab, $code, $meaning], ',', '"', ESC);
+        $flatten = static fn ($v) => trim(preg_replace('/\s+/', ' ', (string)$v));
+        fputcsv($ch, array_map($flatten,
+            [$m['field_name'], $m['form_name'], $lab, $code, $meaning]), ',', '"', ESC);
         $nChoice++;
     }
 }
@@ -267,6 +322,14 @@ echo "Written:\n";
 printf("  %-28s %d rows (one per wide column)\n", basename($cbPath), count($cols));
 printf("  %-28s 1 row  (labels in column order)\n", basename($lbPath));
 printf("  %-28s %d rows (code -> meaning)\n", basename($chPath), $nChoice);
+if ($noLabel > 0)
+{
+    printf("\n  NOTE: %d column(s) have no question label in the dictionary.\n", $noLabel);
+    printf("        They appear in the codebook with an empty label and get no\n");
+    printf("        'label variable' line in a Stata do-file. Usually record_id,\n");
+    printf("        descriptive text fields and section headers.\n");
+}
+
 if ($unknown > 0)
 {
     printf("\n  NOTE: %d column(s) could not be matched to a dictionary field.\n", $unknown);

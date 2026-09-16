@@ -13,6 +13,7 @@
 #   bash tools/make_wide.sh --reuse-raw             # skip the REDCap pull
 #   bash tools/make_wide.sh --verify                # cell-by-cell check (slow)
 #   bash tools/make_wide.sh --codebook              # also build the analyst metadata
+#   bash tools/make_wide.sh --deidentify            # drop identifying fields (see phi_fields.txt)
 #   bash tools/make_wide.sh --template=/tmp/cols.txt # force the engine's full column set
 #
 set -euo pipefail
@@ -24,6 +25,7 @@ SAMPLE=""
 REUSE=0
 VERIFY=0
 CODEBOOK=0
+DEID=0
 TEMPLATE=""
 
 for a in "$@"; do
@@ -35,6 +37,7 @@ for a in "$@"; do
     --reuse-raw)      REUSE=1 ;;
     --verify)         VERIFY=1 ;;
     --codebook)       CODEBOOK=1 ;;
+    --deidentify)     DEID=1 ;;
     --template=*)     TEMPLATE="--template=${a#*=}" ;;
     -h|--help)        sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "Unknown option: $a" >&2; exit 2 ;;
@@ -92,9 +95,17 @@ php tools/export_field_map.php --project="$PROJECT" --out="$FIELDS" 2>&1 | tee -
 [ -s "$FIELDS" ] || fail "$FIELDS is empty"
 
 # ── 3. pivot ───────────────────────────────────────────────────────────────
-step "3/4 Pivot in R"
+EXCL=""
+if [ "$DEID" -eq 1 ]; then
+  [ -f tools/phi_fields.txt ] || fail "tools/phi_fields.txt not found"
+  EXCL="--exclude=tools/phi_fields.txt"
+  step "3/4 Pivot in R (de-identifying)"
+else
+  step "3/4 Pivot in R"
+  note "NOT de-identified — pass --deidentify if this file leaves the team"
+fi
 t=$(secs)
-Rscript tools/wide_pivot.R "$RAW" "$FIELDS" "$WIDE" $SAMPLE $TEMPLATE 2>&1 | tee -a "$LOG" \
+Rscript tools/wide_pivot.R "$RAW" "$FIELDS" "$WIDE" $SAMPLE $TEMPLATE $EXCL 2>&1 | tee -a "$LOG" \
   || fail "wide_pivot.R failed"
 [ -s "$WIDE" ] || fail "$WIDE is empty"
 note "took $(( $(secs) - t ))s"
@@ -117,9 +128,17 @@ if [ "$CODEBOOK" -eq 1 ]; then
     || fail "make_codebook.php failed"
 fi
 
+if [ "$DEID" -eq 1 ]; then
+  step "Final gate — confirm no identifying column survived"
+  php tools/deidentify.php "$WIDE" --check-only 2>&1 | tee -a "$LOG"
+  rc=${PIPESTATUS[0]}
+  [ "$rc" -eq 2 ] && fail "identifying columns are STILL present in $WIDE"
+  [ "$rc" -ne 0 ] && fail "deidentify --check-only failed"
+fi
+
 step "Done in $(( $(secs) - T0 ))s"
 note "wide   : $WIDE  ($(du -h "$WIDE" | cut -f1))"
-note "long   : $RAW"
+note "long   : $RAW  (NOT de-identified — contains identifiers)"
 note "fields : $FIELDS"
 [ "$CODEBOOK" -eq 1 ] && note "codebook: $OUTDIR/${PROJECT}_codebook.csv"
 note "log    : $LOG"
