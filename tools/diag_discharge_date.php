@@ -9,8 +9,24 @@ ini_set('memory_limit', '512M');
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-$engineRoot = realpath(__DIR__ . '/../reporting-engine');
-require $engineRoot . '/vendor/autoload.php';
+// tools/ sits at the repo root alongside reporting-engine/, shared-lib/,
+// projects/ and vendor/. Composer's autoloader is at the REPO ROOT — the
+// same one reporting-engine/public/index.php requires.
+$repoRoot   = dirname(__DIR__);
+$engineRoot = $repoRoot . '/reporting-engine';
+
+if (!is_file($repoRoot . '/vendor/autoload.php'))
+{
+    fwrite(STDERR, "ERROR: Cannot find {$repoRoot}/vendor/autoload.php\n");
+    fwrite(STDERR, "       Run 'composer install' in {$repoRoot}\n");
+    exit(1);
+}
+
+require $repoRoot . '/vendor/autoload.php';
+
+// config.php reads $_ENV. The web entry point loads .env during
+// bootstrap; a CLI script must do it explicitly.
+Dotenv\Dotenv::createImmutable($repoRoot)->safeLoad();
 use CEL\Shared\Infrastructure\Redcap\RedcapApiClient;
 
 $opts    = getopt('', ['project:', 'from:', 'to:']);
@@ -18,7 +34,7 @@ $project = $opts['project'] ?? 'Emollient';
 $from    = $opts['from']    ?? '2026-04-02';
 $to      = $opts['to']      ?? '2026-04-08';
 
-$cfg    = require realpath($engineRoot . '/../projects') . "/{$project}/config.php";
+$cfg    = require $repoRoot . '/projects' . "/{$project}/config.php";
 $client = new RedcapApiClient($cfg['api_url'], $cfg['token']);
 
 $fields = ['record_id', 'dis_hosp_code', 'dis_datetime',
