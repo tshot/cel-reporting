@@ -35,6 +35,8 @@ final class OneTimeFormCompletionConfig
     public readonly ?string $dateFrom;
     public readonly ?string $dateTo;
     public readonly bool    $alwaysDue;   // if true, form is always due once consented (discharge/PD/SW don't exempt)
+    public readonly ?int    $minAgeDays;  // if set, form is not due until the baby is this many days old
+    public readonly string  $dobField;    // field holding date of birth, for minAgeDays
 
     public function __construct(
         string  $formName,
@@ -45,7 +47,9 @@ final class OneTimeFormCompletionConfig
         string  $dateFilterField  = 'enr_datetime',
         ?string $dateFrom         = null,
         ?string $dateTo           = null,
-        bool    $alwaysDue        = false
+        bool    $alwaysDue        = false,
+        ?int    $minAgeDays       = null,
+        string  $dobField         = 'enr_baby_dob'
     ) {
         if (empty($formName)) 
         {
@@ -63,6 +67,8 @@ final class OneTimeFormCompletionConfig
         $this->dateFrom        = $dateFrom ?: null;
         $this->dateTo          = $dateTo   ?: null;
         $this->alwaysDue       = $alwaysDue;
+        $this->minAgeDays      = ($minAgeDays !== null && $minAgeDays > 0) ? $minAgeDays : null;
+        $this->dobField        = $dobField;
     }
 
     /**
@@ -81,6 +87,8 @@ final class OneTimeFormCompletionConfig
             dateFrom:       $config['date_from']          ?? null,
             dateTo:          $config['date_to']            ?? null,
             alwaysDue:       (bool)($config['always_due']  ?? false),
+            minAgeDays:      isset($config['min_age_days']) ? (int)$config['min_age_days'] : null,
+            dobField:        $config['dob_field']           ?? 'enr_baby_dob',
         );
     }
 }

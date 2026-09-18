@@ -67,6 +67,8 @@ class OneTimeFormCompletionAggregator extends AbstractAggregator
             $discharged      = false;
             $pdDone          = false;
             $swDone          = false;
+            $dob             = null;
+            $ageDays         = null;
 
             foreach ($rows as $row) 
             {
@@ -81,6 +83,8 @@ class OneTimeFormCompletionAggregator extends AbstractAggregator
                     if (!empty($row['enr_study_arm']))  $arm  = $row['enr_study_arm'];
                     if (!empty($row[$this->config->dateFilterField]))
                         $filterDate = $this->parseDate($row[$this->config->dateFilterField]);
+                    if (!empty($row[$this->config->dobField]))
+                        $dob = $this->parseDate($row[$this->config->dobField]);
                 }
 
                 // ── Stop conditions ───────────────────────────────────────
@@ -91,8 +95,15 @@ class OneTimeFormCompletionAggregator extends AbstractAggregator
 
                 if ($event === $this->config->otherFormsEvent) 
                 {
-                    if (($row['protocol_deviation_form_complete'] ?? '') === '2') $pdDone = true;
-                    if (($row['study_withdrawal_form_complete']   ?? '') === '2') $swDone = true;
+                    // Test the datetime, not the _complete flag. A started PD or
+                    // SW form means a case exists behind it, so the participant is
+                    // closed whether or not the form was finished. The _complete
+                    // fields were also never fetched by the report definitions —
+                    // only pd_datetime and sw_datetime are — so the previous test
+                    // could never fire: Not Due read 0 across 890 participants
+                    // while seven completed PD forms existed in REDCap.
+                    if (trim((string)($row['pd_datetime'] ?? '')) !== '') $pdDone = true;
+                    if (trim((string)($row['sw_datetime'] ?? '')) !== '') $swDone = true;
                 }
 
                 // ── Target form ───────────────────────────────────────────
@@ -145,6 +156,23 @@ class OneTimeFormCompletionAggregator extends AbstractAggregator
                 $status = $due ? 'missing' : 'not_due';
             }
 
+            // ── Age gate ──────────────────────────────────────────────────
+            // A form is only chaseable once enough time has passed for it to
+            // have been fillable. Without this, a baby enrolled three days ago
+            // counts the same as one whose study period ended a month back, so
+            // the missing figure reflects recent enrolment as much as neglect.
+            // Opt-in per report via min_age_days; absent for every other form.
+            if ($dob !== null)
+            {
+                $ageDays = (int)$dob->diff(new \DateTime('today'))->format('%r%a');
+            }
+
+            $pending = ($status === 'missing');
+            if ($pending && $this->config->minAgeDays !== null)
+            {
+                $pending = ($ageDays !== null && $ageDays >= $this->config->minAgeDays);
+            }
+
             // ── Close reason (informational for always_due) ───────────────
             // Under always_due, PD/SW make the row not_due (handled by notDueReason),
             // so the only useful close-status to surface on a 'missing' row is
@@ -165,6 +193,12 @@ class OneTimeFormCompletionAggregator extends AbstractAggregator
                 'sw'           => $swDone,
                 'close_reason' => $closeReason,
                 'enr_date'     => $filterDate?->format('Y-m-d'),
+                'dob'          => $dob?->format('Y-m-d'),
+                'age_days'     => $ageDays,
+                'pending'      => $pending,
+                'pending_reason' => $pending
+                    ? ($this->config->minAgeDays !== null ? 'Past day ' . $this->config->minAgeDays : 'Due')
+                    : ($status === 'missing' ? 'Not yet due' : ''),
             ];
         }
 
@@ -177,6 +211,7 @@ class OneTimeFormCompletionAggregator extends AbstractAggregator
             'site_summary' => $this->buildSiteSummary($participants),
             'form_name'    => $this->config->formName,
             'always_due'   => $this->config->alwaysDue,
+            'min_age_days' => $this->config->minAgeDays,
         ];
     }
 
@@ -197,6 +232,7 @@ class OneTimeFormCompletionAggregator extends AbstractAggregator
                     'count'    => 0,
                     'complete' => 0,
                     'missing'  => 0,
+                    'pending'  => 0,
                     'not_due'  => 0,
                     'pct'      => null,
                 ];
@@ -204,12 +240,17 @@ class OneTimeFormCompletionAggregator extends AbstractAggregator
 
             $sites[$s]['count']++;
             $sites[$s][$p['status']]++;
+            if (!empty($p['pending'])) $sites[$s]['pending']++;
         }
 
-        // Compute pct: complete / (complete + missing) — not_due excluded
+        // Compute pct: complete / (complete + pending). A form that is not yet
+        // due cannot be counted against a site — before min_age_days was added,
+        // recently enrolled babies inflated 'missing' and depressed the
+        // percentage, so a site that had just enrolled well scored worst. Where
+        // min_age_days is not set, pending equals missing and this is unchanged.
         foreach ($sites as &$s) 
         {
-            $denominator = $s['complete'] + $s['missing'];
+            $denominator = $s['complete'] + ($s['pending'] ?? $s['missing']);
             $s['pct']    = $denominator > 0
                 ? round($s['complete'] / $denominator * 100, 1)
                 : null;
@@ -217,15 +258,17 @@ class OneTimeFormCompletionAggregator extends AbstractAggregator
         unset($s);
 
         // Total row
-        $t = ['site' => 'TOTAL', 'count' => 0, 'complete' => 0, 'missing' => 0, 'not_due' => 0, 'pct' => null];
+        $t = ['site' => 'TOTAL', 'count' => 0, 'complete' => 0, 'missing' => 0, 'pending' => 0, 'not_due' => 0, 'pct' => null];
         foreach ($sites as $s) 
         {
             $t['count']    += $s['count'];
             $t['complete'] += $s['complete'];
             $t['missing']  += $s['missing'];
+            $t['pending']  += $s['pending'] ?? 0;
+            $t['pending']  += $s['pending'] ?? 0;
             $t['not_due']  += $s['not_due'];
         }
-        $denom    = $t['complete'] + $t['missing'];
+        $denom    = $t['complete'] + $t['pending'];
         $t['pct'] = $denom > 0 ? round($t['complete'] / $denom * 100, 1) : null;
 
         $sites['TOTAL'] = $t;

@@ -112,6 +112,8 @@ class OneTimeFormCompletionHtmlExporter implements ExporterInterface
                    . "<td>{$p['record_id']}</td>"
                    . "<td>{$site}</td>"
                    . "<td>{$arm}</td>"
+                   . "<td class='nowrap' style='color:#555;font-size:12px'>" . htmlspecialchars($p['dob'] ?? '') . "</td>"
+                   . "<td style='text-align:center;color:#555;font-size:12px'>" . ($p['age_days'] ?? '') . "</td>"
                    . ($alwaysDue ? "<td class='nowrap' style='color:#555;font-size:12px'>{$enrDate}</td>" : '')
                    . "<td class='{$statusClass}' style='text-align:center;font-weight:bold'>{$statusLabel}</td>"
                    . $reasonCell
@@ -129,6 +131,8 @@ class OneTimeFormCompletionHtmlExporter implements ExporterInterface
       <th>ID</th>
       <th>Site</th>
       <th>Arm</th>
+      <th>DOB</th>
+      <th title='Age in days'>Age</th>
       " . ($alwaysDue ? "<th>Enrolled</th>" : '') . "
       <th>Status</th>
       <th>" . ($alwaysDue ? 'Reason / Case Status' : 'Reason if Not Due') . "</th>
@@ -161,6 +165,7 @@ class OneTimeFormCompletionHtmlExporter implements ExporterInterface
                    . "<td style='text-align:center'>{$s['count']}</td>"
                    . "<td style='text-align:center;color:#2e7d32'>{$s['complete']}</td>"
                    . "<td style='text-align:center;color:#c62828'>{$s['missing']}</td>"
+                   . "<td style='text-align:center;color:#c62828;font-weight:bold'>" . ($s['pending'] ?? 0) . "</td>"
                    . "<td style='text-align:center;color:#888'>{$s['not_due']}</td>"
                    . "<td class='{$ragCls}' style='text-align:center;font-weight:bold'>{$pct}</td>"
                    . "</tr>";
@@ -175,6 +180,7 @@ class OneTimeFormCompletionHtmlExporter implements ExporterInterface
                    . "<td style='text-align:center'><strong>{$total['count']}</strong></td>"
                    . "<td style='text-align:center;color:#2e7d32'><strong>{$total['complete']}</strong></td>"
                    . "<td style='text-align:center;color:#c62828'><strong>{$total['missing']}</strong></td>"
+                   . "<td style='text-align:center;color:#c62828'><strong>" . ($total['pending'] ?? 0) . "</strong></td>"
                    . "<td style='text-align:center;color:#888'><strong>{$total['not_due']}</strong></td>"
                    . "<td class='{$ragCls}' style='text-align:center;font-weight:bold'>{$pct}</td>"
                    . "</tr>";
@@ -198,6 +204,7 @@ class OneTimeFormCompletionHtmlExporter implements ExporterInterface
       <th>Participants</th>
       <th>Complete</th>
       <th>Missing</th>
+      <th title='Missing and past the age at which the form becomes due'>Pending</th>
       <th>Not Due</th>
       <th>% Complete</th>
     </tr>

@@ -513,6 +513,11 @@ return [
         'formats'            => ['html', 'download_html', 'pdf', 'csv', 'excel'],
         'form_name'          => 'discharge_form',
         'form_event'         => 'discharge_arm_1',
+        // Pending counts only babies past day 28 — see min_age_days in
+        // OneTimeFormCompletionConfig. Absent on every other one-time form,
+        // which keeps their behaviour unchanged.
+        'min_age_days'       => 29,
+        'dob_field'          => 'enr_baby_dob',
         'enrollment_event'   => 'day0_arm_1',
         'discharge_event'    => 'discharge_arm_1',
         'other_forms_event'  => 'other_forms_arm_1',
