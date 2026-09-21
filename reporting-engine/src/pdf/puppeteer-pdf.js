@@ -102,8 +102,7 @@ function launchBrowser()
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-crashpad',
-            '--user-data-dir=' + path.join(__dirname, '..', '..', 'var', 'chromium')]
+            '--disable-crashpad']
     };
 
     // Use the system Chrome when it exists (dev machines); otherwise fall
@@ -123,7 +122,7 @@ function launchBrowser()
     // the developer and, via Apache, as www-data. Created on demand so no
     // deployment step is needed.
     var chromeHome = path.join(
-        __dirname, '..', '..', 'var',
+        __dirname, '..', '..', '..', 'var',
         'chromium-home-' + (os.userInfo().username || 'default')
     );
     fs.mkdirSync(chromeHome, { recursive: true });
