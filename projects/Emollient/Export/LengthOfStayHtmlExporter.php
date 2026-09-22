@@ -28,9 +28,10 @@ use CEL\Shared\Domain\Export\ExporterInterface;
  * file is self-contained. Chart.js is always loaded from CDN (too large to
  * inline). Pattern matches EligibilityHtmlExporter exactly.
  *
- * Two stat sets are shown throughout:
- *   Blue  = including Day-28 cases (LOS counted as 28)
- *   Green = excluding Day-28 cases (discharged babies only)
+ * Reads LengthOfStayAggregator v2. LOS is real for every baby whose outcome
+ * is los_computed, so a single set of statistics is shown. The first section
+ * is the enrolment audit: every enrolled baby appears in exactly one outcome
+ * column, and each row is checked to add up to the number enrolled.
  */
 class LengthOfStayHtmlExporter implements ExporterInterface
 {
@@ -119,16 +120,16 @@ class LengthOfStayHtmlExporter implements ExporterInterface
             $s                 = $bySite[$code] ?? [];
             $chartBoxData[]    = [
                 'label'  => $label,
-                'min'    => $s['min_excl']    ?? null,
-                'median' => $s['median_excl'] ?? null,
-                'max'    => $s['max_excl']    ?? null,
-                'mean'   => $s['mean_excl']   ?? null,
-                'std'    => $s['std_excl']    ?? null,
+                'min'    => $s['min']    ?? null,
+                'median' => $s['median'] ?? null,
+                'max'    => $s['max']    ?? null,
+                'mean'   => $s['mean']   ?? null,
+                'std'    => $s['std']    ?? null,
             ];
         }
 
         foreach ($patients as $p) {
-            if ($p['los_days'] !== null && $p['in_hosp_day28'] !== true) {
+            if ($p['los_days'] !== null) {
                 $idx              = max(0, min(27, (int)$p['los_days'] - 1));
                 $histBuckets[$idx]++;
             }
@@ -158,18 +159,26 @@ class LengthOfStayHtmlExporter implements ExporterInterface
     <div class="report-period"><?= htmlspecialchars($periodLabel) ?></div>
   </div>
 
+  <!-- ── Section 0: Enrolment audit ───────────────────────────────────── -->
+  <div class="section-block" id="section-audit">
+    <div class="section-header">
+      <div class="section-title">Enrolment Audit &mdash; What Happened to Every Enrolled Baby</div>
+    </div>
+    <?= $this->renderAuditSection($payload, $siteOrder, $siteLabels) ?>
+  </div>
+
   <!-- ── Section 1: Summary cards ─────────────────────────────────────── -->
   <div class="section-block" id="section-summary">
     <div class="section-header">
       <div class="section-title">Summary</div>
     </div>
-    <?= $this->renderSummaryCards($bySite) ?>
+    <?= $this->renderSummaryCards($bySite, $payload['audit_by_site']['Total'] ?? []) ?>
   </div>
 
   <!-- ── Section 2: Site summary table ───────────────────────────────── -->
   <div class="section-block" id="section-by-site">
     <div class="section-header">
-      <div class="section-title">Hospital-wise Summary</div>
+      <div class="section-title">Length of Stay by Hospital</div>
     </div>
     <?= $this->renderSiteTable($bySite, $siteOrder, $siteLabels) ?>
   </div>
@@ -177,7 +186,7 @@ class LengthOfStayHtmlExporter implements ExporterInterface
   <!-- ── Section 3: Arm summary table ────────────────────────────────── -->
   <div class="section-block" id="section-by-arm">
     <div class="section-header">
-      <div class="section-title">Study Arm Summary</div>
+      <div class="section-title">Length of Stay by Study Arm</div>
     </div>
     <?= $this->renderArmTable($byArm) ?>
   </div>
@@ -192,7 +201,7 @@ class LengthOfStayHtmlExporter implements ExporterInterface
       <span><span class="chart-legend-dot" style="background:#4ade80"></span>&lt;&nbsp;7&nbsp;days</span>
       <span><span class="chart-legend-dot" style="background:#60a5fa"></span>7&ndash;14&nbsp;days</span>
       <span><span class="chart-legend-dot" style="background:#fb923c"></span>15&ndash;27&nbsp;days</span>
-      <span><span class="chart-legend-dot" style="background:#f87171"></span>Day&nbsp;28&nbsp;(still in hospital)</span>
+      <span><span class="chart-legend-dot" style="background:#f87171"></span>28&nbsp;days&nbsp;or&nbsp;more</span>
     </div>
   </div>
 
@@ -202,7 +211,7 @@ class LengthOfStayHtmlExporter implements ExporterInterface
       <div class="section-title">LOS Spread by Site</div>
     </div>
     <div class="chart-wrap"><canvas id="chartBoxPlot"></canvas></div>
-    <p class="chart-footnote">Median line &middot; Mean &plusmn; 1&thinsp;SD box &middot; min/max range. Excludes Day-28 cases.</p>
+    <p class="chart-footnote">Median line &middot; Mean &plusmn; 1&thinsp;SD box &middot; min/max range. Babies with LOS computed only.</p>
   </div>
 
   <!-- ── Section 6: Histogram ─────────────────────────────────────────── -->
@@ -211,7 +220,7 @@ class LengthOfStayHtmlExporter implements ExporterInterface
       <div class="section-title">LOS Frequency Distribution</div>
     </div>
     <div class="chart-wrap"><canvas id="chartHistogram"></canvas></div>
-    <p class="chart-footnote">All discharged patients (excludes Day-28 cases). Each bar = one day.</p>
+    <p class="chart-footnote">Babies with LOS computed. Each bar is one day; the first bar also holds same-day discharges, and the last holds every stay of 28 days or more.</p>
   </div>
 
   <!-- ── Section 7: Per-patient table ─────────────────────────────────── -->
@@ -269,16 +278,18 @@ window.LOS_HIST_BUCKETS = <?= json_encode(array_values($histBuckets)) ?>;
 
         $title = match ($section) {
             'summary'  => 'LOS Summary',
+            'audit'    => 'LOS — Enrolment Audit',
             'by-site'  => 'LOS — Hospital Summary',
             'by-arm'   => 'LOS — Study Arm Summary',
             'patients' => 'LOS — Per-Patient Detail',
             default    => 'Length of Stay',
         };
 
-        $hasColumns = in_array($section, ['by-site', 'by-arm', 'patients'], true);
+        $hasColumns = in_array($section, ['audit', 'by-site', 'by-arm', 'patients'], true);
 
         $content = match ($section) {
-            'summary'  => $this->renderSummaryCards($bySite),
+            'summary'  => $this->renderSummaryCards($bySite, $payload['audit_by_site']['Total'] ?? []),
+            'audit'    => $this->renderAuditSection($payload, $siteOrder, $siteLabels),
             'by-site'  => $this->renderSiteTable($bySite, $siteOrder, $siteLabels),
             'by-arm'   => $this->renderArmTable($byArm),
             'patients' => $this->renderFilterBar($siteOrder, $siteLabels)
@@ -338,41 +349,57 @@ window.SECTION_NAME        = <?= json_encode($section) ?>;
     // Sub-renderers
     // =========================================================================
 
-    private function renderSummaryCards(array $bySite): string
+    private function renderSummaryCards(array $bySite, array $a = []): string
     {
-        $t = $bySite['Total'] ?? [];
+        $t        = $bySite['Total'] ?? [];
+        $enrolled = (int)($a['enrolled'] ?? 0);
+        $n        = (int)($t['count'] ?? 0);
+        $pending  = (int)(($a['still_in_study'] ?? 0) + ($a['regular_overdue'] ?? 0)
+                  + ($a['awaiting_post28'] ?? 0));
+        $excluded = 0;
+        foreach (['withdrawn', 'protocol_deviation', 'death', 'lama', 'abscond', 'dopr', 'referral'] as $k) {
+            $excluded += (int)($a[$k] ?? 0);
+        }
+        $issues = (int)($a['data_issue'] ?? 0);
+        $pct    = $enrolled > 0 ? round($n / $enrolled * 100, 1) . '% of enrolled' : '';
+        $d      = fn($v) => $v !== null ? $v . '&nbsp;d' : '&mdash;';
         ob_start();
         ?>
 <div class="los-cards">
   <div class="los-card">
-    <div class="los-card-label">Patients with LOS data</div>
-    <div class="los-card-value"><?= $t['count'] ?? '&mdash;' ?></div>
-    <div class="los-card-sub"><?= (int)($t['count_missing'] ?? 0) ?> missing discharge data</div>
+    <div class="los-card-label">Enrolled</div>
+    <div class="los-card-value"><?= $enrolled ?></div>
+    <div class="los-card-sub">babies in this report</div>
+  </div>
+  <div class="los-card">
+    <div class="los-card-label">LOS computed</div>
+    <div class="los-card-value"><?= $n ?></div>
+    <div class="los-card-sub"><?= $pct ?><?= !empty($t['count_other']) ? ' &middot; ' . (int)$t['count_other'] . ' Other' : '' ?></div>
   </div>
   <div class="los-card accent">
-    <div class="los-card-label">Mean LOS (incl. Day&nbsp;28)</div>
-    <div class="los-card-value"><?= $t['mean_incl'] !== null ? $t['mean_incl'] . ' d' : '&mdash;' ?></div>
-    <div class="los-card-sub">all enrolled babies</div>
+    <div class="los-card-label">Mean LOS</div>
+    <div class="los-card-value"><?= $d($t['mean'] ?? null) ?></div>
+    <div class="los-card-sub">planned discharges</div>
   </div>
   <div class="los-card accent">
-    <div class="los-card-label">Median LOS (incl. Day&nbsp;28)</div>
-    <div class="los-card-value"><?= $t['median_incl'] !== null ? $t['median_incl'] . ' d' : '&mdash;' ?></div>
-    <div class="los-card-sub">all enrolled babies</div>
+    <div class="los-card-label">Median LOS</div>
+    <div class="los-card-value"><?= $d($t['median'] ?? null) ?></div>
+    <div class="los-card-sub">planned discharges</div>
   </div>
   <div class="los-card">
-    <div class="los-card-label">Mean LOS (discharged)</div>
-    <div class="los-card-value"><?= $t['mean_excl'] !== null ? $t['mean_excl'] . ' d' : '&mdash;' ?></div>
-    <div class="los-card-sub">excl. Day-28 cases</div>
+    <div class="los-card-label">Discharge not yet recorded</div>
+    <div class="los-card-value"><?= $pending ?></div>
+    <div class="los-card-sub">in study, form overdue, or awaiting post-28</div>
   </div>
   <div class="los-card">
-    <div class="los-card-label">Median LOS (discharged)</div>
-    <div class="los-card-value"><?= $t['median_excl'] !== null ? $t['median_excl'] . ' d' : '&mdash;' ?></div>
-    <div class="los-card-sub">excl. Day-28 cases</div>
+    <div class="los-card-label">Excluded</div>
+    <div class="los-card-value"><?= $excluded ?></div>
+    <div class="los-card-sub">withdrawal, deviation or discharge type</div>
   </div>
   <div class="los-card">
-    <div class="los-card-label">Still in hospital (Day&nbsp;28)</div>
-    <div class="los-card-value"><?= $t['count_day28'] ?? '&mdash;' ?></div>
-    <div class="los-card-sub"><?= $t['pct_day28'] !== null ? $t['pct_day28'] . '% of total' : '' ?></div>
+    <div class="los-card-label">Data issues</div>
+    <div class="los-card-value"><?= $issues ?></div>
+    <div class="los-card-sub">see the audit section</div>
   </div>
 </div>
         <?php
@@ -381,128 +408,185 @@ window.SECTION_NAME        = <?= json_encode($section) ?>;
 
     private function renderSiteTable(array $bySite, array $siteOrder, array $siteLabels): string
     {
-        $rows = array_merge($siteOrder, ['Total']);
-        ob_start();
-        ?>
-<div style="overflow-x:auto">
-<table class="los-table report-table">
-<thead>
-<tr>
-  <th>Hospital</th>
-  <th class="num">N</th>
-  <th class="num">Day&nbsp;28<br><span class="stat-note">N&thinsp;(%)</span></th>
-  <th class="num">Missing</th>
-  <th class="num">Mean<br><span class="stat-note">incl&thinsp;/&thinsp;excl</span></th>
-  <th class="num">Median<br><span class="stat-note">incl&thinsp;/&thinsp;excl</span></th>
-  <th class="num">SD<br><span class="stat-note">incl&thinsp;/&thinsp;excl</span></th>
-  <th class="num">Min&ndash;Max<br><span class="stat-note">excl Day-28</span></th>
-</tr>
-</thead>
-<tbody>
-<?php foreach ($rows as $code):
-    $s       = $bySite[$code] ?? [];
-    $isTotal = ($code === 'Total');
-    $label   = $isTotal
-        ? '<strong>Total</strong>'
-        : htmlspecialchars($siteLabels[$code] ?? $code);
-    if ($isTotal) echo '<tfoot>';
-?>
-<tr>
-  <td class="site-col"><?= $label ?></td>
-  <td class="num"><?= $s['count'] ?? '&mdash;' ?></td>
-  <td class="num">
-    <?= $s['count_day28'] ?? '&mdash;' ?>
-    <?php if (($s['pct_day28'] ?? null) !== null): ?>
-      <span class="sub-val"><?= $s['pct_day28'] ?>%</span>
-    <?php endif; ?>
-  </td>
-  <td class="num"><?= $s['count_missing'] ?? '&mdash;' ?></td>
-  <td class="num">
-    <span class="incl-val"><?= $s['mean_incl'] ?? '&mdash;' ?></span>
-    <span class="excl-val" style="color:#2e7d52"><?= $s['mean_excl'] ?? '&mdash;' ?></span>
-  </td>
-  <td class="num">
-    <span class="incl-val"><?= $s['median_incl'] ?? '&mdash;' ?></span>
-    <span class="excl-val" style="color:#2e7d52"><?= $s['median_excl'] ?? '&mdash;' ?></span>
-  </td>
-  <td class="num">
-    <span class="incl-val"><?= $s['std_incl'] ?? '&mdash;' ?></span>
-    <span class="excl-val" style="color:#2e7d52"><?= $s['std_excl'] ?? '&mdash;' ?></span>
-  </td>
-  <td class="num">
-    <?php if (($s['min_excl'] ?? null) !== null): ?>
-      <?= $s['min_excl'] ?>&ndash;<?= $s['max_excl'] ?>
-    <?php else: ?>&mdash;<?php endif; ?>
-  </td>
-</tr>
-<?php if ($isTotal) echo '</tfoot>'; ?>
-<?php endforeach; ?>
-</tbody>
-</table>
-</div>
-<p class="stat-legend-note">
-  <span class="incl-val">Blue</span> = including Day-28 cases (LOS counted as 28).&ensp;
-  <span class="excl-val">Green</span> = discharged babies only.
-</p>
-        <?php
-        return ob_get_clean();
+        $rows = array_merge($siteOrder, isset($bySite['Total']) ? ['Total'] : []);
+        return $this->renderStatsTable($bySite, $rows, $siteLabels, 'Site');
     }
 
     private function renderArmTable(array $byArm): string
     {
-        $arms = array_filter(array_keys($byArm), fn($k) => $k !== 'Total');
-        $rows = array_merge(array_values($arms), ['Total']);
+        $arms = array_values(array_filter(array_keys($byArm), fn($k) => $k !== 'Total'));
+        return $this->renderStatsTable($byArm, array_merge($arms, ['Total']), [], 'Study arm');
+    }
+
+    private function renderStatsTable(array $tbl, array $rows, array $names, string $groupHeader): string
+    {
         ob_start();
         ?>
 <div style="overflow-x:auto">
 <table class="los-table report-table">
 <thead>
 <tr>
-  <th>Study arm</th>
-  <th class="num">N</th>
-  <th class="num">Day&nbsp;28<br><span class="stat-note">N&thinsp;(%)</span></th>
-  <th class="num">Mean<br><span class="stat-note">incl&thinsp;/&thinsp;excl</span></th>
-  <th class="num">Median<br><span class="stat-note">incl&thinsp;/&thinsp;excl</span></th>
-  <th class="num">SD<br><span class="stat-note">incl&thinsp;/&thinsp;excl</span></th>
-  <th class="num">Min&ndash;Max<br><span class="stat-note">excl Day-28</span></th>
+  <th><?= htmlspecialchars($groupHeader) ?></th>
+  <th class="num">N<br><span class="stat-note">LOS computed</span></th>
+  <th class="num">Mean</th>
+  <th class="num">Median</th>
+  <th class="num">SD</th>
+  <th class="num">Min&ndash;Max</th>
+  <th class="num">Other<br><span class="stat-note">TYP_OTH</span></th>
 </tr>
 </thead>
 <tbody>
-<?php foreach ($rows as $arm):
-    $s       = $byArm[$arm] ?? [];
-    $isTotal = ($arm === 'Total');
-    if ($isTotal) echo '<tfoot>';
+<?php foreach ($rows as $key):
+    $s = $tbl[$key] ?? null;
+    if ($s === null) continue;
+    $isTotal = ($key === 'Total');
+    $name    = $isTotal ? '<strong>Total</strong>'
+             : htmlspecialchars($key === '' ? 'Not recorded' : ($names[$key] ?? $key));
 ?>
-<tr>
-  <td class="site-col">
-    <?= $isTotal ? '<strong>Total</strong>' : htmlspecialchars($arm) ?>
-  </td>
-  <td class="num"><?= $s['count'] ?? '&mdash;' ?></td>
-  <td class="num">
-    <?= $s['count_day28'] ?? '&mdash;' ?>
-    <?php if (($s['pct_day28'] ?? null) !== null): ?>
-      <span class="sub-val"><?= $s['pct_day28'] ?>%</span>
-    <?php endif; ?>
-  </td>
-  <td class="num">
-    <span class="incl-val"><?= $s['mean_incl'] ?? '&mdash;' ?></span>
-    <span class="excl-val" style="color:#2e7d52"><?= $s['mean_excl'] ?? '&mdash;' ?></span>
-  </td>
-  <td class="num">
-    <span class="incl-val"><?= $s['median_incl'] ?? '&mdash;' ?></span>
-    <span class="excl-val" style="color:#2e7d52"><?= $s['median_excl'] ?? '&mdash;' ?></span>
-  </td>
-  <td class="num">
-    <span class="incl-val"><?= $s['std_incl'] ?? '&mdash;' ?></span>
-    <span class="excl-val" style="color:#2e7d52"><?= $s['std_excl'] ?? '&mdash;' ?></span>
-  </td>
-  <td class="num">
-    <?php if (($s['min_excl'] ?? null) !== null): ?>
-      <?= $s['min_excl'] ?>&ndash;<?= $s['max_excl'] ?>
-    <?php else: ?>&mdash;<?php endif; ?>
-  </td>
+<tr<?= $isTotal ? ' class="total-row"' : '' ?>>
+  <td class="site-col"><?= $name ?></td>
+  <td class="num"><?= (int)($s['count'] ?? 0) ?></td>
+  <td class="num"><?= $s['mean']   ?? '&mdash;' ?></td>
+  <td class="num"><?= $s['median'] ?? '&mdash;' ?></td>
+  <td class="num"><?= $s['std']    ?? '&mdash;' ?></td>
+  <td class="num"><?= ($s['min'] ?? null) !== null ? $s['min'] . '&ndash;' . $s['max'] : '&mdash;' ?></td>
+  <td class="num"><?= (int)($s['count_other'] ?? 0) ?></td>
 </tr>
-<?php if ($isTotal) echo '</tfoot>'; ?>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+<p class="stat-legend-note">Babies with LOS computed only &mdash; planned discharges
+(TYP_FP, TYP_OTH) with valid dates. LOS is in completed days from hospital admission.</p>
+        <?php
+        return ob_get_clean();
+    }
+
+    // =========================================================================
+    // Enrolment audit
+    // =========================================================================
+
+    private function renderAuditSection(array $payload, array $siteOrder, array $siteLabels): string
+    {
+        $bySite  = $payload['audit_by_site']     ?? [];
+        $byArm   = $payload['audit_by_arm']      ?? [];
+        $labels  = $payload['outcome_labels']    ?? [];
+        $issues  = $payload['data_issues']       ?? [];
+        $iLabels = $payload['data_issue_labels'] ?? [];
+
+        $siteRows = array_values(array_filter($siteOrder, fn($c) => isset($bySite[$c])));
+        if (isset($bySite['Total'])) $siteRows[] = 'Total';
+
+        ob_start();
+        ?>
+<p class="stat-legend-note">Every enrolled baby is counted in exactly one outcome column, so
+each row must add up to <strong>Enrolled</strong>. The last column confirms it does.
+Outcomes are assigned in the order shown: the first that applies is used.</p>
+<?= $this->renderAuditTable($bySite, $siteRows, $siteLabels, $labels, 'Site') ?>
+<h4 style="margin:1.4em 0 .5em">By study arm</h4>
+<?= $this->renderAuditTable($byArm, array_keys($byArm), [], $labels, 'Study arm') ?>
+<?php if ($issues): ?>
+<h4 style="margin:1.4em 0 .5em">Data issues by reason</h4>
+<?= $this->renderIssueTable($issues, $iLabels, $siteOrder, $siteLabels) ?>
+<?php endif; ?>
+        <?php
+        return ob_get_clean();
+    }
+
+    private function renderAuditTable(array $tbl, array $rows, array $names, array $labels, string $groupHeader): string
+    {
+        $groups = [
+            ['Excluded &mdash;<br>study status',  ['withdrawn', 'protocol_deviation']],
+            ['Discharge not<br>yet recorded',      ['still_in_study', 'regular_overdue', 'awaiting_post28']],
+            ['Excluded &mdash;<br>discharge type', ['death', 'lama', 'abscond', 'dopr', 'referral']],
+        ];
+        $single = ['data_issue', 'los_computed'];
+        $short  = [
+            'withdrawn' => 'With-<br>drawn', 'protocol_deviation' => 'Protocol<br>deviation',
+            'still_in_study' => 'Still in<br>study', 'regular_overdue' => 'Regular<br>form<br>overdue',
+            'awaiting_post28' => 'Awaiting<br>post-28', 'death' => 'Death', 'lama' => 'LAMA',
+            'abscond' => 'Abscond', 'dopr' => 'DOPR', 'referral' => 'Referral',
+            'data_issue' => 'Data<br>issue', 'los_computed' => 'LOS<br>computed',
+        ];
+        $cols = [];
+        foreach ($groups as $g) foreach ($g[1] as $k) $cols[] = $k;
+        foreach ($single as $k) $cols[] = $k;
+        ob_start();
+        ?>
+<div style="overflow-x:auto">
+<table class="los-table report-table">
+<thead>
+<tr>
+  <th rowspan="2"><?= htmlspecialchars($groupHeader) ?></th>
+  <th rowspan="2" class="num">Enrolled</th>
+<?php foreach ($groups as $g): ?>
+  <th colspan="<?= count($g[1]) ?>" class="num"><?= $g[0] ?></th>
+<?php endforeach; ?>
+<?php foreach ($single as $k): ?>
+  <th rowspan="2" class="num" title="<?= htmlspecialchars($labels[$k] ?? $k) ?>"><?= $short[$k] ?></th>
+<?php endforeach; ?>
+  <th rowspan="2" class="num">Adds<br>up</th>
+</tr>
+<tr>
+<?php foreach ($groups as $g): foreach ($g[1] as $k): ?>
+  <th class="num" title="<?= htmlspecialchars($labels[$k] ?? $k) ?>"><?= $short[$k] ?></th>
+<?php endforeach; endforeach; ?>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($rows as $key):
+    $r = $tbl[$key] ?? null;
+    if ($r === null) continue;
+    $isTotal = ($key === 'Total');
+    $name    = $isTotal ? '<strong>Total</strong>'
+             : htmlspecialchars($key === '' ? 'Not recorded' : ($names[$key] ?? $key));
+?>
+<tr<?= $isTotal ? ' class="total-row"' : '' ?>>
+  <td class="site-col"><?= $name ?></td>
+  <td class="num"><strong><?= (int)($r['enrolled'] ?? 0) ?></strong></td>
+<?php foreach ($cols as $k): ?>
+  <td class="num"><?= (int)($r[$k] ?? 0) ?></td>
+<?php endforeach; ?>
+  <td class="num"><?= !empty($r['reconciles']) ? '&#10003;' : '<strong style="color:#b91c1c">&#10007;&nbsp;no</strong>' ?></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+        <?php
+        return ob_get_clean();
+    }
+
+    private function renderIssueTable(array $issues, array $iLabels, array $siteOrder, array $siteLabels): string
+    {
+        $sites = array_values(array_filter($siteOrder, function ($c) use ($issues) {
+            foreach ($issues as $bySite) {
+                if (!empty($bySite[$c])) return true;
+            }
+            return false;
+        }));
+        ob_start();
+        ?>
+<div style="overflow-x:auto">
+<table class="los-table report-table">
+<thead>
+<tr>
+  <th>Reason</th>
+<?php foreach ($sites as $c): ?>
+  <th class="num"><?= htmlspecialchars($siteLabels[$c] ?? $c) ?></th>
+<?php endforeach; ?>
+  <th class="num">Total</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($issues as $reason => $bySite): ?>
+<tr>
+  <td><?= htmlspecialchars($iLabels[$reason] ?? $reason) ?></td>
+<?php foreach ($sites as $c): ?>
+  <td class="num"><?= (int)($bySite[$c] ?? 0) ?></td>
+<?php endforeach; ?>
+  <td class="num"><strong><?= (int)($bySite['Total'] ?? 0) ?></strong></td>
+</tr>
 <?php endforeach; ?>
 </tbody>
 </table>
@@ -533,12 +617,21 @@ window.SECTION_NAME        = <?= json_encode($section) ?>;
       <option>Control</option>
     </select>
   </label>
-  <label>LOS status
+  <label>Outcome
     <select id="filterStatus" onchange="applyLosFilters()">
       <option value="">All</option>
-      <option value="day28">Day 28 (in hospital)</option>
-      <option value="discharged">Discharged</option>
-      <option value="missing">Missing data</option>
+      <option value="los_computed">LOS computed</option>
+      <option value="still_in_study">Still in study</option>
+      <option value="regular_overdue">Regular discharge form overdue</option>
+      <option value="awaiting_post28">Awaiting post-28 discharge</option>
+      <option value="withdrawn">Withdrawn</option>
+      <option value="protocol_deviation">Protocol deviation</option>
+      <option value="death">Death</option>
+      <option value="lama">LAMA</option>
+      <option value="abscond">Abscond</option>
+      <option value="dopr">DOPR</option>
+      <option value="referral">Referral</option>
+      <option value="data_issue">Data issue</option>
     </select>
   </label>
   <label>Search record ID
@@ -561,48 +654,51 @@ window.SECTION_NAME        = <?= json_encode($section) ?>;
   <th onclick="sortLosTable(0)">Record ID</th>
   <th onclick="sortLosTable(1)">Site</th>
   <th onclick="sortLosTable(2)">Study Arm</th>
-  <th onclick="sortLosTable(3)">Admission Date</th>
-  <th onclick="sortLosTable(4)">Discharge Date</th>
-  <th class="num" onclick="sortLosTable(5)">LOS (days)</th>
-  <th>Status</th>
+  <th onclick="sortLosTable(3)">Admission</th>
+  <th onclick="sortLosTable(4)">Discharge</th>
+  <th onclick="sortLosTable(5)">Discharge type</th>
+  <th class="num" onclick="sortLosTable(6)">LOS (days)</th>
+  <th onclick="sortLosTable(7)">Outcome</th>
 </tr>
 </thead>
 <tbody id="patientTableBody">
 <?php foreach ($patients as $id => $p):
-    $site = $p['site']      ?? '';
-    $arm  = $p['study_arm'] ?? '';
-    $los  = $p['los_days'];
-    $inH  = $p['in_hosp_day28'];
+    $site    = $p['site']      ?? '';
+    $arm     = $p['study_arm'] ?? '';
+    $los     = $p['los_days']  ?? null;
+    $outcome = $p['outcome']   ?? '';
+    $detail  = $p['detail']    ?? '';
 
-    if ($los === null)     $status = 'missing';
-    elseif ($inH === true) $status = 'day28';
-    else                   $status = 'discharged';
-
-    $badge = match ($status) {
-        'day28'      => '<span class="los-badge badge-28">Day&nbsp;28</span>',
-        'missing'    => '<span class="los-badge badge-null">Missing</span>',
-        'discharged' => match (true) {
+    if ($outcome === 'los_computed' && $los !== null) {
+        $badge = match (true) {
             $los < 7   => '<span class="los-badge badge-lt7">&lt;&thinsp;7&thinsp;d</span>',
             $los <= 14 => '<span class="los-badge badge-7_14">7&ndash;14&thinsp;d</span>',
-            default    => '<span class="los-badge badge-15_27">15&ndash;27&thinsp;d</span>',
-        },
-    };
+            $los <= 27 => '<span class="los-badge badge-15_27">15&ndash;27&thinsp;d</span>',
+            default    => '<span class="los-badge badge-28">28+&thinsp;d</span>',
+        };
+    } elseif ($outcome === 'data_issue') {
+        $badge = '<span class="los-badge badge-null" style="background:#fde2e2;color:#991b1b">Data issue</span>';
+    } else {
+        $badge = '<span class="los-badge badge-null">' . htmlspecialchars($p['outcome_label'] ?? $outcome) . '</span>';
+    }
 
-    $disCell = ($status === 'day28')
-        ? 'In hospital'
-        : htmlspecialchars($p['discharge_date'] ?? '');
+    $dis     = (string)($p['discharge_date'] ?? '');
+    $src     = (string)($p['discharge_source'] ?? '');
+    $disCell = $dis === '' ? '&mdash;'
+             : htmlspecialchars($dis) . ($src !== '' ? '<br><span class="stat-note">' . htmlspecialchars($src) . '</span>' : '');
 ?>
 <tr data-site="<?= htmlspecialchars(strtolower($site)) ?>"
     data-arm="<?= htmlspecialchars(strtolower($arm)) ?>"
-    data-status="<?= $status ?>"
+    data-status="<?= htmlspecialchars($outcome) ?>"
     data-id="<?= htmlspecialchars(strtolower((string)$id)) ?>">
   <td><?= htmlspecialchars((string)$id) ?></td>
   <td><?= htmlspecialchars($siteLabels[$site] ?? $site) ?></td>
   <td><?= htmlspecialchars($arm) ?></td>
-  <td><?= htmlspecialchars($p['admission_date'] ?? '') ?></td>
+  <td><?= htmlspecialchars((string)($p['admission_date'] ?? '')) ?></td>
   <td><?= $disCell ?></td>
-  <td class="num"><?= $los !== null ? $los : '&mdash;' ?></td>
-  <td><?= $badge ?></td>
+  <td><?= htmlspecialchars((string)($p['discharge_type'] ?? '')) ?></td>
+  <td class="num"><?= $los !== null ? (int)$los : '&mdash;' ?></td>
+  <td><?= $badge ?><?php if ($outcome === 'data_issue' && $detail !== ''): ?><br><span class="stat-note"><?= htmlspecialchars($detail) ?></span><?php endif; ?></td>
 </tr>
 <?php endforeach; ?>
 </tbody>
