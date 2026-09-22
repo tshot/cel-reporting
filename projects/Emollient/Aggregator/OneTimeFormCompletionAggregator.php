@@ -265,7 +265,6 @@ class OneTimeFormCompletionAggregator extends AbstractAggregator
             $t['complete'] += $s['complete'];
             $t['missing']  += $s['missing'];
             $t['pending']  += $s['pending'] ?? 0;
-            $t['pending']  += $s['pending'] ?? 0;
             $t['not_due']  += $s['not_due'];
         }
         $denom    = $t['complete'] + $t['pending'];
