@@ -1,15 +1,17 @@
 # Emollient Study — Length of Stay: Computation Logic
 
-_Aggregator version 2 • Document revision 3 • September 2026_
+_Aggregator version 2 • Document revision 4 • September 2026_
 
 
 ## 1. Summary
 
-Length of Stay (LOS) is computed for every enrolled baby who had a planned discharge, as the number of completed days between hospital admission and the actual discharge. Every other enrolled baby is still counted: each is assigned exactly one outcome that explains why no LOS was computed, so the report can always be reconciled back to the number enrolled.
+Length of Stay (LOS) is computed for every enrolled baby discharged as planned (TYP_FP), Other (TYP_OTH) or on parental request (TYP_DOPR), as the number of completed days between hospital admission and the actual discharge. Every other enrolled baby is still counted: each is assigned exactly one outcome that explains why no LOS was computed, so the report can always be reconciled back to the number enrolled.
 
 ```
 LOS  =  floor( (discharge datetime − admission datetime) / 1 day )
 ```
+
+> **Definition change, 22 September 2026:** DOPR discharges were excluded until this date and now produce an LOS. Figures produced before the change are not comparable with those after it: they count fewer babies, and probably a longer mean, since a stay ended at the parents' request is likely to be shorter than a planned one.
 
 This document describes the logic as implemented in projects/Emollient/Aggregator/LengthOfStayAggregator.php, version 2, September 2026. It replaces the earlier version, which fixed LOS at 28 days for any baby still in hospital at Day 28 and did not apply date filtering.
 
@@ -63,9 +65,9 @@ Each enrolled baby ends in exactly one of eight outcomes:
 | Still in study | Under 29 days old; the regular discharge form is not yet due |
 | Regular discharge form overdue | 29 days old or more, and the regular discharge form is not complete |
 | Awaiting post-28 discharge | Still in hospital at Day 28; the after-28-days form is not yet complete |
-| Death, LAMA, Abscond, DOPR, Referral | Excluded by discharge type — one column each |
+| Death, LAMA, Abscond, Referral | Excluded by discharge type — one column each |
 | Data issue | Something needed to reach an outcome is missing or contradictory — see §6 |
-| LOS computed | Planned discharge with valid admission and discharge datetimes |
+| LOS computed | Discharge type TYP_FP, TYP_OTH or TYP_DOPR, with valid admission and discharge datetimes |
 
 
 ### 4.1 The order of checks
@@ -82,8 +84,8 @@ The checks run in a fixed sequence, and the first that settles a baby's outcome 
 | 4 | dis_in_hosp blank | Data issue |
 | 5 | dis_in_hosp is N: if the after-28-days form is complete or has a discharge datetime | Data issue — otherwise the regular form supplies the discharge; go to step 7 |
 | 6 | dis_in_hosp is Y: if the after-28-days form is not complete | Awaiting post-28 discharge — otherwise that form supplies the discharge; go to step 7. Any value other than Y or N is a data issue |
-| 7 | Discharge type is TYP_DEA, TYP_LAMA, TYP_ABS, TYP_DOPR or TYP_REF | Death, LAMA, Abscond, DOPR or Referral |
-| 8 | Discharge type is anything other than TYP_FP or TYP_OTH | Data issue |
+| 7 | Discharge type is TYP_DEA, TYP_LAMA, TYP_ABS or TYP_REF | Death, LAMA, Abscond or Referral |
+| 8 | Discharge type is anything other than TYP_FP, TYP_OTH or TYP_DOPR | Data issue |
 | 9 | More than one baby on the record marked enrolled | Data issue |
 | 10 | Admission datetime missing | Data issue |
 | 11 | Discharge datetime missing | Data issue |
@@ -136,7 +138,7 @@ When dis_in_hosp is Y, the regular form's own discharge date and type are ignore
 | TYP_DEA | Death | Excluded |
 | TYP_LAMA | Left against medical advice | Excluded |
 | TYP_ABS | Abscond | Excluded |
-| TYP_DOPR | DOPR | Excluded |
+| TYP_DOPR | Discharge on parental request | LOS computed, and counted separately — see §7.1 |
 | TYP_REF | Referral | Excluded |
 | blank or any other value | — | Data issue |
 
@@ -194,11 +196,14 @@ Everything in this section is computed only over babies whose outcome is LOS com
 | SD | Sample standard deviation (dividing by n − 1), rounded to one decimal place. Blank when n is under 2 |
 | Min, Max | Shortest and longest stay, in whole days |
 | Other | How many of the n had discharge type TYP_OTH |
+| DOPR | How many of the n had discharge type TYP_DOPR |
 
 
-### 7.1 Why 'Other' is shown
+### 7.1 Why Other and DOPR are shown separately
 
 TYP_OTH is included, but it can mean anything. Showing the count lets someone see if a site's LOS figures rest heavily on discharges nobody has categorised — which would be worth looking into.
+
+TYP_DOPR is included, but a stay ended at the parents' request is likely to be shorter than a planned one. A site with many DOPR discharges will show a lower mean for that reason alone, and the count makes that visible.
 
 
 ### 7.2 Distribution bands
@@ -249,7 +254,7 @@ The CSV download of the Length of Stay Diagnostic report lists every enrolled ba
 | discharge_type | Discharge type code from that form |
 | los_days | LOS, blank unless the outcome is LOS computed |
 | outcome, outcome_label | The outcome code and its label |
-| detail | For a data issue, the specific reason; for TYP_OTH, a note |
+| detail | For a data issue, the specific reason; for TYP_OTH or TYP_DOPR, a note |
 
 > **Reading it with pandas:** The file is standard CSV and starts with a byte-order mark so Excel displays it correctly. In pandas, read it with encoding='utf-8-sig', or the first column name arrives with an invisible character in front of record_id.
 
