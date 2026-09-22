@@ -361,7 +361,7 @@ window.SECTION_NAME        = <?= json_encode($section) ?>;
         $pending  = (int)(($a['still_in_study'] ?? 0) + ($a['regular_overdue'] ?? 0)
                   + ($a['awaiting_post28'] ?? 0));
         $excluded = 0;
-        foreach (['withdrawn', 'protocol_deviation', 'death', 'lama', 'abscond', 'dopr', 'referral'] as $k) {
+        foreach (['withdrawn', 'protocol_deviation', 'death', 'lama', 'abscond', 'referral'] as $k) {
             $excluded += (int)($a[$k] ?? 0);
         }
         $issues = (int)($a['data_issue'] ?? 0);
@@ -378,7 +378,7 @@ window.SECTION_NAME        = <?= json_encode($section) ?>;
   <div class="los-card">
     <div class="los-card-label">LOS computed</div>
     <div class="los-card-value"><?= $n ?></div>
-    <div class="los-card-sub"><?= $pct ?><?= !empty($t['count_other']) ? ' &middot; ' . (int)$t['count_other'] . ' Other' : '' ?></div>
+    <div class="los-card-sub"><?= $pct ?><?= !empty($t['count_other']) ? ' &middot; ' . (int)$t['count_other'] . ' Other' : '' ?><?= !empty($t['count_dopr']) ? ' &middot; ' . (int)$t['count_dopr'] . ' DOPR' : '' ?></div>
   </div>
   <div class="los-card accent">
     <div class="los-card-label">Mean LOS</div>
@@ -437,6 +437,7 @@ window.SECTION_NAME        = <?= json_encode($section) ?>;
   <th class="num">SD</th>
   <th class="num">Min&ndash;Max</th>
   <th class="num">Other<br><span class="stat-note">TYP_OTH</span></th>
+  <th class="num">DOPR<br><span class="stat-note">TYP_DOPR</span></th>
 </tr>
 </thead>
 <tbody>
@@ -455,13 +456,14 @@ window.SECTION_NAME        = <?= json_encode($section) ?>;
   <td class="num"><?= $s['std']    ?? '&mdash;' ?></td>
   <td class="num"><?= ($s['min'] ?? null) !== null ? $s['min'] . '&ndash;' . $s['max'] : '&mdash;' ?></td>
   <td class="num"><?= (int)($s['count_other'] ?? 0) ?></td>
+  <td class="num"><?= (int)($s['count_dopr'] ?? 0) ?></td>
 </tr>
 <?php endforeach; ?>
 </tbody>
 </table>
 </div>
-<p class="stat-legend-note">Babies with LOS computed only &mdash; planned discharges
-(TYP_FP, TYP_OTH) with valid dates. LOS is in completed days from hospital admission.</p>
+<p class="stat-legend-note">Babies with LOS computed only &mdash; discharge types
+TYP_FP, TYP_OTH and TYP_DOPR, with valid dates. LOS is in completed days from hospital admission.</p>
         <?php
         return ob_get_clean();
     }
@@ -502,14 +504,14 @@ Click any number to list those babies in the Per-Patient Detail table. The order
         $groups = [
             ['Excluded &mdash;<br>study status',  ['withdrawn', 'protocol_deviation']],
             ['Discharge not<br>yet recorded',      ['still_in_study', 'regular_overdue', 'awaiting_post28']],
-            ['Excluded &mdash;<br>discharge type', ['death', 'lama', 'abscond', 'dopr', 'referral']],
+            ['Excluded &mdash;<br>discharge type', ['death', 'lama', 'abscond', 'referral']],
         ];
         $single = ['data_issue', 'los_computed'];
         $short  = [
             'withdrawn' => 'With-<br>drawn', 'protocol_deviation' => 'Protocol<br>deviation',
             'still_in_study' => 'Still in<br>study', 'regular_overdue' => 'Regular<br>form<br>overdue',
             'awaiting_post28' => 'Awaiting<br>post-28', 'death' => 'Death', 'lama' => 'LAMA',
-            'abscond' => 'Abscond', 'dopr' => 'DOPR', 'referral' => 'Referral',
+            'abscond' => 'Abscond', 'referral' => 'Referral',
             'data_issue' => 'Data<br>issue', 'los_computed' => 'LOS<br>computed',
         ];
         $cols = [];
@@ -649,7 +651,6 @@ Click any number to list those babies in the Per-Patient Detail table. The order
       <option value="death">Death</option>
       <option value="lama">LAMA</option>
       <option value="abscond">Abscond</option>
-      <option value="dopr">DOPR</option>
       <option value="referral">Referral</option>
       <option value="data_issue">Data issue</option>
     </select>

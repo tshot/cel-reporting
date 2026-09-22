@@ -7,7 +7,7 @@ use CEL\Shared\Domain\Aggregator\AbstractAggregator;
 /**
  * LengthOfStayAggregator — v2, September 2026
  *
- * LOS is computed only for babies with a planned discharge, from the ACTUAL
+ * LOS is computed for babies discharged as TYP_FP, TYP_OTH or TYP_DOPR, from the ACTUAL
  * discharge datetime:
  *
  *     LOS = floor((discharge − admission) / 86400)      completed days
@@ -28,7 +28,7 @@ use CEL\Shared\Domain\Aggregator\AbstractAggregator;
  *   3  still_in_study       regular discharge form not complete, < 29 days since DOB
  *   4  regular_overdue      regular discharge form not complete, ≥ 29 days since DOB
  *   5  awaiting_post28      dis_in_hosp = 'Y', post-28 form not complete
- *   6  death | lama | abscond | dopr | referral     excluded discharge types
+ *   6  death | lama | abscond | referral            excluded discharge types
  *   7  data_issue           see DATA_ISSUES — reason carried per baby
  *   8  los_computed
  *
@@ -50,17 +50,19 @@ use CEL\Shared\Domain\Aggregator\AbstractAggregator;
 class LengthOfStayAggregator extends AbstractAggregator
 {
     /** Discharge types that produce an LOS. */
-    private const INCLUDED_TYPES = ['TYP_FP', 'TYP_OTH'];
+    private const INCLUDED_TYPES = ['TYP_FP', 'TYP_OTH', 'TYP_DOPR'];
 
     /** 'Other' is included but reported separately — it can mean anything. */
     private const OTHER_TYPE = 'TYP_OTH';
+
+    /** DOPR is included (September 2026) and, like Other, reported separately. */
+    private const DOPR_TYPE = 'TYP_DOPR';
 
     /** Discharge types that exclude a baby, and the outcome each maps to. */
     private const EXCLUDED_TYPES = [
         'TYP_DEA'  => 'death',
         'TYP_LAMA' => 'lama',
         'TYP_ABS'  => 'abscond',
-        'TYP_DOPR' => 'dopr',
         'TYP_REF'  => 'referral',
     ];
 
@@ -80,7 +82,6 @@ class LengthOfStayAggregator extends AbstractAggregator
         'death'              => 'Death',
         'lama'               => 'LAMA',
         'abscond'            => 'Abscond',
-        'dopr'               => 'DOPR',
         'referral'           => 'Referral',
         'data_issue'         => 'Data issue',
         'los_computed'       => 'LOS computed',
@@ -234,6 +235,8 @@ class LengthOfStayAggregator extends AbstractAggregator
                 }
             } elseif ($outcome === 'los_computed' && $p['discharge_type'] === self::OTHER_TYPE) {
                 $p['detail'] = 'Discharge type Other (TYP_OTH)';
+            } elseif ($outcome === 'los_computed' && $p['discharge_type'] === self::DOPR_TYPE) {
+                $p['detail'] = 'Discharge type DOPR (TYP_DOPR)';
             }
             $p['_issue'] = $issue;
 
@@ -310,6 +313,7 @@ class LengthOfStayAggregator extends AbstractAggregator
         $auditSite = [];  $auditArm = [];
         $losSite   = [];  $losArm   = [];
         $otherSite = [];  $otherArm = [];
+        $doprSite  = [];  $doprArm  = [];
         $issues    = [];
 
         foreach ($patients as $p)
@@ -324,13 +328,16 @@ class LengthOfStayAggregator extends AbstractAggregator
             if ($outcome === 'los_computed')
             {
                 $isOther = ($p['discharge_type'] === self::OTHER_TYPE);
+                $isDopr  = ($p['discharge_type'] === self::DOPR_TYPE);
                 foreach ([$site, 'Total'] as $key) {
                     $losSite[$key][] = $p['los_days'];
                     if ($isOther) $otherSite[$key] = ($otherSite[$key] ?? 0) + 1;
+                    if ($isDopr)  $doprSite[$key]  = ($doprSite[$key]  ?? 0) + 1;
                 }
                 foreach ([$arm, 'Total'] as $key) {
                     $losArm[$key][] = $p['los_days'];
                     if ($isOther) $otherArm[$key] = ($otherArm[$key] ?? 0) + 1;
+                    if ($isDopr)  $doprArm[$key]  = ($doprArm[$key]  ?? 0) + 1;
                 }
             }
 
@@ -345,8 +352,8 @@ class LengthOfStayAggregator extends AbstractAggregator
         $auditSite = $this->finaliseAudit($auditSite);
         $auditArm  = $this->finaliseAudit($auditArm);
 
-        $bySite = []; foreach ($auditSite as $k => $_) $bySite[$k] = $this->stats($losSite[$k] ?? [], $otherSite[$k] ?? 0);
-        $byArm  = []; foreach ($auditArm  as $k => $_) $byArm[$k]  = $this->stats($losArm[$k]  ?? [], $otherArm[$k]  ?? 0);
+        $bySite = []; foreach ($auditSite as $k => $_) $bySite[$k] = $this->stats($losSite[$k] ?? [], $otherSite[$k] ?? 0, $doprSite[$k] ?? 0);
+        $byArm  = []; foreach ($auditArm  as $k => $_) $byArm[$k]  = $this->stats($losArm[$k]  ?? [], $otherArm[$k]  ?? 0, $doprArm[$k]  ?? 0);
 
         $dist = [];
         foreach ($auditSite as $k => $_)
@@ -426,7 +433,7 @@ class LengthOfStayAggregator extends AbstractAggregator
      * day28 keys keep the pre-v2 exporter rendering: with actual discharge
      * dates there is no fixed Day-28 value, so both views are identical.
      */
-    private function stats(array $vals, int $other): array
+    private function stats(array $vals, int $other, int $dopr = 0): array
     {
         sort($vals);
         $n      = count($vals);
@@ -447,7 +454,7 @@ class LengthOfStayAggregator extends AbstractAggregator
         $max = $n ? max($vals) : null;
 
         return [
-            'count' => $n, 'count_other' => $other,
+            'count' => $n, 'count_other' => $other, 'count_dopr' => $dopr,
             'mean'  => $mean, 'median' => $median, 'std' => $std, 'min' => $min, 'max' => $max,
             // --- compatibility with the pre-v2 exporter ---
             'count_day28' => 0, 'pct_day28' => 0.0, 'count_missing' => 0,

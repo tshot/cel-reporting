@@ -21,7 +21,7 @@ $los = $f->generate('Emollient', 'LengthOfStay', []);
 $short = [
     'withdrawn' => 'SW', 'protocol_deviation' => 'PD', 'still_in_study' => 'InStudy',
     'regular_overdue' => 'RegOvd', 'awaiting_post28' => 'Await28',
-    'death' => 'Death', 'lama' => 'LAMA', 'abscond' => 'Absc', 'dopr' => 'DOPR',
+    'death' => 'Death', 'lama' => 'LAMA', 'abscond' => 'Absc',
     'referral' => 'Ref', 'data_issue' => 'DataIss', 'los_computed' => 'LOS',
 ];
 
@@ -55,11 +55,11 @@ if (empty($los['data_issues'])) {
 }
 
 echo "\n== LOS (babies with LOS computed) ==\n";
-printf("%-10s %6s %6s %7s %6s %5s %5s %6s\n", 'group', 'n', 'mean', 'median', 'sd', 'min', 'max', 'other');
+printf("%-10s %6s %6s %7s %6s %5s %5s %6s %5s\n", 'group', 'n', 'mean', 'median', 'sd', 'min', 'max', 'other', 'dopr');
 foreach ($los['by_site'] as $g => $s) {
-    printf("%-10s %6d %6s %7s %6s %5s %5s %6d\n", $g, $s['count'],
+    printf("%-10s %6d %6s %7s %6s %5s %5s %6d %5d\n", $g, $s['count'],
         $s['mean'] ?? '-', $s['median'] ?? '-', $s['std'] ?? '-',
-        $s['min'] ?? '-', $s['max'] ?? '-', $s['count_other']);
+        $s['min'] ?? '-', $s['max'] ?? '-', $s['count_other'], $s['count_dopr'] ?? 0);
 }
 
 echo "\n== Cross-check: Regular discharge form overdue  vs  DischargeFormCompletion Pending ==\n";
