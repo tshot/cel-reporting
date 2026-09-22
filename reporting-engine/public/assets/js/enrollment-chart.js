@@ -84,6 +84,20 @@
                         title:       { display: true, text: 'Number of Enrollments' },
                         beginAtZero: true,
                         ticks:       { stepSize: 1, precision: 0 }
+                    },
+                    // Total runs several times higher than any single site, so on a
+                    // shared axis the site lines are squeezed into the bottom fifth
+                    // of the plot. Its own axis on the right lets them use the full
+                    // height. Both begin at zero so the two scales stay comparable.
+                    yTotal: {
+                        position:    'right',
+                        title:       { display: true, text: 'Total (all sites)' },
+                        // min must be forced: beginAtZero is advisory and Chart.js
+                        // auto-fitted this axis to 24-32, which turned a 14%
+                        // variation in the total into a full-height zigzag.
+                        min:         0,
+                        ticks:       { precision: 0 },
+                        grid:        { drawOnChartArea: false }
                     }
                 }
             },

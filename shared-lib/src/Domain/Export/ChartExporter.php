@@ -115,6 +115,7 @@ abstract class ChartExporter implements ExporterInterface
             $datasets[] = [
                 'label'            => $site,
                 'data'             => array_map(fn($p) => $counts[$site][$p] ?? 0, $periods),
+                'yAxisID'          => 'y',
                 'borderColor'      => $color,
                 'backgroundColor'  => $color,
                 'pointRadius'      => 5,
@@ -129,6 +130,7 @@ abstract class ChartExporter implements ExporterInterface
             $datasets[] = [
                 'label'            => 'Total',
                 'data'             => array_map(fn($p) => $periodTotals[$p] ?? 0, $periods),
+                'yAxisID'          => 'yTotal',
                 'borderColor'      => '#000000',
                 'backgroundColor'  => '#000000',
                 'borderDash'       => [6, 3],
