@@ -626,22 +626,24 @@ return [
         'aggregator' => 'length_of_stay',
         'exporter'   => 'length_of_stay',
         'formats'    => ['html', 'download_html', 'pdf', 'csv', 'section'],
-        'forms'      => [
-            'baby_prescreening_and_screening_form',
-            'discharge_form',
-        ],
         'fields'     => [
-            // Screening form (day0_arm_1) — twin/triplet identification
-            'baby_eligible_enroll',
-            'baby_datetime_admission',
-            // Discharge form (discharge_arm_1) — site, arm, and discharge data
-            'dis_hosp_code',
-            'dis_study_arm',
-            'dis_in_hosp',
-            'dis_datetime',
+            'record_id',
+            // day0_arm_1 — enrolment (denominator, site, arm, DOB, filter date)
+            'enr_consent_granted', 'enr_hosp_code', 'enr_study_arm',
+            'enr_baby_dob', 'enr_datetime',
+            // day0_arm_1 — screening: which twin is enrolled, and admission
+            'baby_eligible_enroll', 'baby_datetime_admission',
+            // other_forms_arm_1 — withdrawal and protocol deviation
+            'sw_datetime', 'pd_datetime',
+            // discharge_arm_1 — regular discharge form
+            'discharge_form_complete', 'dis_in_hosp', 'dis_datetime', 'dis_discharge_type',
+            // discharge_arm_1 — discharge after 28 days of stay
+            'discharge_after_28_days_of_stay_complete',
+            'dis_post_28_datetime', 'dis_post_28_discharge_type',
         ],
         'events'     => [
             'day0_arm_1',
+            'other_forms_arm_1',
             'discharge_arm_1',
         ],
         // No date_from / date_to — defaults to all dates.
@@ -660,22 +662,26 @@ return [
         'group' => 'Diagnostics & Exports',
         'mode'       => 'aggregate',
         'aggregator' => 'length_of_stay',
-        'exporter'   => 'csv',           // CsvExporter handles the patients array
+        'exporter'   => 'length_of_stay',  // format=csv resolves to length_of_stay_csv: one row per enrolled baby
         'formats'    => ['csv'],
-        'forms'      => [
-            'baby_prescreening_and_screening_form',
-            'discharge_form',
-        ],
         'fields'     => [
-            'baby_eligible_enroll',
-            'baby_datetime_admission',
-            'dis_hosp_code',
-            'dis_study_arm',
-            'dis_in_hosp',
-            'dis_datetime',
+            'record_id',
+            // day0_arm_1 — enrolment (denominator, site, arm, DOB, filter date)
+            'enr_consent_granted', 'enr_hosp_code', 'enr_study_arm',
+            'enr_baby_dob', 'enr_datetime',
+            // day0_arm_1 — screening: which twin is enrolled, and admission
+            'baby_eligible_enroll', 'baby_datetime_admission',
+            // other_forms_arm_1 — withdrawal and protocol deviation
+            'sw_datetime', 'pd_datetime',
+            // discharge_arm_1 — regular discharge form
+            'discharge_form_complete', 'dis_in_hosp', 'dis_datetime', 'dis_discharge_type',
+            // discharge_arm_1 — discharge after 28 days of stay
+            'discharge_after_28_days_of_stay_complete',
+            'dis_post_28_datetime', 'dis_post_28_discharge_type',
         ],
         'events'     => [
             'day0_arm_1',
+            'other_forms_arm_1',
             'discharge_arm_1',
         ],
     ],

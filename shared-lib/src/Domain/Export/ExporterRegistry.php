@@ -51,6 +51,7 @@ class ExporterRegistry
         'form_completion_csv'   => \CEL\Projects\Emollient\Export\FormCompletionIncompleteCsvExporter::class,
         'missing_daily_monitoring_csv' => \CEL\Projects\Emollient\Export\MissingDailyMonitoringCsvExporter::class,
         'one_time_completion_csv' => \CEL\Projects\Emollient\Export\OneTimeFormCompletionIncompleteCsvExporter::class,
+        'length_of_stay_csv'   => \CEL\Projects\Emollient\Export\LengthOfStayCsvExporter::class,
         'form_completion_excel' => \CEL\Projects\Emollient\Export\FormCompletionIncompleteExcelExporter::class,
         'one_time_completion_excel' => \CEL\Projects\Emollient\Export\OneTimeFormCompletionIncompleteExcelExporter::class,
         'form_completion_participants_csv'   => \CEL\Projects\Emollient\Export\FormCompletionParticipantsCsvExporter::class,

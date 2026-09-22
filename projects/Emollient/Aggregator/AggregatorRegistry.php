@@ -122,7 +122,8 @@ class AggregatorRegistry
         );
 
         self::register('length_of_stay', fn($pk, $cfg) =>
-            new LengthOfStayAggregator($pk, $cfg['site_filter'] ?? [])
+            new LengthOfStayAggregator($pk, $cfg['site_filter'] ?? [],
+                $cfg['date_from'] ?? null, $cfg['date_to'] ?? null)
         );
 
         self::register('weight_analysis', fn($pk, $cfg) =>
