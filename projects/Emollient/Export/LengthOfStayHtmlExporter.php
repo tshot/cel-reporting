@@ -110,7 +110,7 @@ class LengthOfStayHtmlExporter implements ExporterInterface
         $chartSiteLabels = [];
         $chartDist       = [];
         $chartBoxData    = [];
-        $histBuckets     = array_fill(0, 28, 0);   // index 0 = day 1
+        $histBuckets     = [];   // filled below: index = LOS in days
 
         foreach ($siteOrder as $code) {
             $label             = $siteLabels[$code] ?? $code;
@@ -128,11 +128,15 @@ class LengthOfStayHtmlExporter implements ExporterInterface
             ];
         }
 
+        // One bucket per day, 0 (same-day) to the longest stay. The v1 page
+        // capped this at 28, which piled every long post-28 stay into one bar.
+        $maxLos = 0;
         foreach ($patients as $p) {
-            if ($p['los_days'] !== null) {
-                $idx              = max(0, min(27, (int)$p['los_days'] - 1));
-                $histBuckets[$idx]++;
-            }
+            if ($p['los_days'] !== null) $maxLos = max($maxLos, (int)$p['los_days']);
+        }
+        $histBuckets = array_fill(0, $maxLos + 1, 0);
+        foreach ($patients as $p) {
+            if ($p['los_days'] !== null) $histBuckets[(int)$p['los_days']]++;
         }
 
         // ── CSS / JS tags ──────────────────────────────────────────────────
@@ -220,7 +224,7 @@ class LengthOfStayHtmlExporter implements ExporterInterface
       <div class="section-title">LOS Frequency Distribution</div>
     </div>
     <div class="chart-wrap"><canvas id="chartHistogram"></canvas></div>
-    <p class="chart-footnote">Babies with LOS computed. Each bar is one day; the first bar also holds same-day discharges, and the last holds every stay of 28 days or more.</p>
+    <p class="chart-footnote">Babies with LOS computed. One bar per day of stay, from 0 (same-day discharge) to the longest recorded, coloured by band.</p>
   </div>
 
   <!-- ── Section 7: Per-patient table ─────────────────────────────────── -->
@@ -481,10 +485,10 @@ window.SECTION_NAME        = <?= json_encode($section) ?>;
         ?>
 <p class="stat-legend-note">Every enrolled baby is counted in exactly one outcome column, so
 each row must add up to <strong>Enrolled</strong>. The last column confirms it does.
-Outcomes are assigned in the order shown: the first that applies is used.</p>
+Click any number to list those babies in the Per-Patient Detail table. The order in which outcomes are assigned is set out in the Length of Stay computation document.</p>
 <?= $this->renderAuditTable($bySite, $siteRows, $siteLabels, $labels, 'Site') ?>
 <h4 style="margin:1.4em 0 .5em">By study arm</h4>
-<?= $this->renderAuditTable($byArm, array_keys($byArm), [], $labels, 'Study arm') ?>
+<?= $this->renderAuditTable($byArm, array_keys($byArm), [], $labels, 'Study arm', 'arm') ?>
 <?php if ($issues): ?>
 <h4 style="margin:1.4em 0 .5em">Data issues by reason</h4>
 <?= $this->renderIssueTable($issues, $iLabels, $siteOrder, $siteLabels) ?>
@@ -493,7 +497,7 @@ Outcomes are assigned in the order shown: the first that applies is used.</p>
         return ob_get_clean();
     }
 
-    private function renderAuditTable(array $tbl, array $rows, array $names, array $labels, string $groupHeader): string
+    private function renderAuditTable(array $tbl, array $rows, array $names, array $labels, string $groupHeader, string $dim = 'site'): string
     {
         $groups = [
             ['Excluded &mdash;<br>study status',  ['withdrawn', 'protocol_deviation']],
@@ -543,9 +547,9 @@ Outcomes are assigned in the order shown: the first that applies is used.</p>
 ?>
 <tr<?= $isTotal ? ' class="total-row"' : '' ?>>
   <td class="site-col"><?= $name ?></td>
-  <td class="num"><strong><?= (int)($r['enrolled'] ?? 0) ?></strong></td>
+  <td class="num"><strong><?= $this->auditLink((int)($r['enrolled'] ?? 0), '', (string)$key, $dim) ?></strong></td>
 <?php foreach ($cols as $k): ?>
-  <td class="num"><?= (int)($r[$k] ?? 0) ?></td>
+  <td class="num"><?= $this->auditLink((int)($r[$k] ?? 0), $k, (string)$key, $dim) ?></td>
 <?php endforeach; ?>
   <td class="num"><?= !empty($r['reconciles']) ? '&#10003;' : '<strong style="color:#b91c1c">&#10007;&nbsp;no</strong>' ?></td>
 </tr>
@@ -555,6 +559,22 @@ Outcomes are assigned in the order shown: the first that applies is used.</p>
 </div>
         <?php
         return ob_get_clean();
+    }
+
+    /**
+     * A count in the audit table, linked to the per-patient table filtered to
+     * exactly those babies. Zero, and a blank ('Not recorded') group, are left
+     * as plain text: there is nothing to list, or no filter that can express it.
+     */
+    private function auditLink(int $n, string $outcome, string $key, string $dim): string
+    {
+        if ($n === 0 || $key === '') return (string)$n;
+        $site = ($dim === 'site' && $key !== 'Total') ? strtolower($key) : '';
+        $arm  = ($dim === 'arm'  && $key !== 'Total') ? strtolower($key) : '';
+        $js   = sprintf('return window.losFilterTo ? losFilterTo(%s, %s, %s) : true;',
+                        json_encode($outcome), json_encode($site), json_encode($arm));
+        return '<a href="#section-patients" style="color:inherit;text-decoration:underline dotted"'
+             . ' title="List these babies" onclick="' . htmlspecialchars($js) . '">' . $n . '</a>';
     }
 
     private function renderIssueTable(array $issues, array $iLabels, array $siteOrder, array $siteLabels): string

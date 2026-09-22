@@ -4,12 +4,14 @@
  * Client-side behaviour for the Length of Stay report:
  *   - Chart initialisation (stacked bar, box plot, histogram)
  *   - Per-patient table: live filtering + column sort
+ *   - Audit table: clicking a count filters the per-patient table to those babies
  *
  * Expects these globals injected by LengthOfStayHtmlExporter:
  *   window.LOS_SITE_LABELS   — array of site display labels (same order as distribution)
- *   window.LOS_CHART_DIST    — array of {lt7, w7_14, w15_27, day28} per site
+ *   window.LOS_CHART_DIST    — array of {lt7, w7_14, w15_27, w28plus} per site
+ *                              (older payloads name the fourth band 'day28')
  *   window.LOS_CHART_BOX     — array of {label, min, median, max, mean, std} per site
- *   window.LOS_HIST_BUCKETS  — array[28] frequency counts, index 0 = day 1
+ *   window.LOS_HIST_BUCKETS  — array of counts, index = LOS in days (0 = same-day)
  *
  * Chart.js must be loaded before this script.
  */
@@ -18,11 +20,18 @@
 
     /* ── Chart colours ──────────────────────────────────────────────────── */
     var BAND_COLORS = {
-        lt7:    '#4ade80',
-        w7_14:  '#60a5fa',
-        w15_27: '#fb923c',
-        day28:  '#f87171'
+        lt7:     '#4ade80',
+        w7_14:   '#60a5fa',
+        w15_27:  '#fb923c',
+        w28plus: '#f87171'
     };
+
+    function bandColour(los) {
+        if (los < 7)   return BAND_COLORS.lt7;
+        if (los <= 14) return BAND_COLORS.w7_14;
+        if (los <= 27) return BAND_COLORS.w15_27;
+        return BAND_COLORS.w28plus;
+    }
 
     /* ── 1. Stacked bar — LOS distribution by site ──────────────────────── */
     if (window.ChartDataLabels) {
@@ -51,9 +60,11 @@
                         backgroundColor: BAND_COLORS.w15_27
                     },
                     {
-                        label: 'Day 28 (in hospital)',
-                        data: LOS_CHART_DIST.map(function (d) { return d.day28; }),
-                        backgroundColor: BAND_COLORS.day28
+                        label: '28 days or more',
+                        data: LOS_CHART_DIST.map(function (d) {
+                            return (d.w28plus !== undefined) ? d.w28plus : d.day28;
+                        }),
+                        backgroundColor: BAND_COLORS.w28plus
                     }
                 ]
             },
@@ -169,43 +180,51 @@
                     x: { grid: { display: false } },
                     y: {
                         beginAtZero: true,
-                        title: { display: true, text: 'LOS (days, excl. Day-28)' }
+                        title: { display: true, text: 'LOS (days)' }
                     }
                 }
             }
         });
     }
 
-    /* ── 3. Histogram — LOS frequency distribution ──────────────────────── */
+    /* ── 3. Histogram — one bar per day of LOS, 0 to the longest stay ───── */
     var histEl = document.getElementById('chartHistogram');
     if (histEl && window.LOS_HIST_BUCKETS) {
         new Chart(histEl, {
             type: 'bar',
             data: {
-                labels: Array.from({ length: 28 }, function (_, i) { return 'Day ' + (i + 1); }),
+                labels: LOS_HIST_BUCKETS.map(function (_, i) { return String(i); }),
                 datasets: [{
                     label: 'Patients',
                     data: LOS_HIST_BUCKETS,
-                    backgroundColor: LOS_HIST_BUCKETS.map(function (_, i) {
-                        if (i < 6)  return BAND_COLORS.lt7;
-                        if (i < 14) return BAND_COLORS.w7_14;
-                        if (i < 27) return BAND_COLORS.w15_27;
-                        return BAND_COLORS.day28;
-                    }),
-                    borderRadius: 3
+                    backgroundColor: LOS_HIST_BUCKETS.map(function (_, i) { return bandColour(i); }),
+                    borderRadius: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: {
+                    legend: { display: false },
+                    datalabels: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: function (items) {
+                                var d = items[0].dataIndex;
+                                return 'LOS ' + d + (d === 1 ? ' day' : ' days');
+                            }
+                        }
+                    }
+                },
                 scales: {
                     x: {
                         grid: { display: false },
+                        ticks: { autoSkip: true, maxRotation: 0 },
                         title: { display: true, text: 'LOS (days)' }
                     },
                     y: {
                         beginAtZero: true,
+                        ticks: { precision: 0 },
                         title: { display: true, text: 'Number of patients' }
                     }
                 }
@@ -214,6 +233,8 @@
     }
 
     /* ── 4. Per-patient table: filter ───────────────────────────────────── */
+    // Site and arm match EXACTLY. They previously used substring matching,
+    // which would let one site code select another that contains it.
     window.applyLosFilters = function () {
         var site   = document.getElementById('filterSite')   ? document.getElementById('filterSite').value.toLowerCase()   : '';
         var arm    = document.getElementById('filterArm')    ? document.getElementById('filterArm').value.toLowerCase()    : '';
@@ -229,8 +250,8 @@
             var rStatus = (row.dataset.status || '');
             var rId     = (row.dataset.id     || '').toLowerCase();
 
-            var ok = (!site   || rSite.includes(site))
-                  && (!arm    || rArm.includes(arm))
+            var ok = (!site   || rSite === site)
+                  && (!arm    || rArm === arm)
                   && (!status || rStatus === status)
                   && (!search || rId.includes(search));
 
@@ -242,7 +263,35 @@
         if (countEl) countEl.textContent = visible + ' patients shown';
     };
 
-    /* ── 5. Per-patient table: column sort ──────────────────────────────── */
+    /* ── 5. Audit table: click a count to list those babies ─────────────── */
+    // Select the option whose value matches case-insensitively; the arm
+    // options carry their text as value ('Intervention'), the data attributes
+    // are lower case. Falls back to '' (all) when nothing matches.
+    function setSelect(id, want) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        want = (want || '').toLowerCase();
+        var found = '';
+        for (var i = 0; i < el.options.length; i++) {
+            if (el.options[i].value.toLowerCase() === want) { found = el.options[i].value; break; }
+        }
+        el.value = found;
+    }
+
+    window.losFilterTo = function (outcome, site, arm) {
+        if (!document.getElementById('patientTableBody')) return true;   // no table on this page
+        setSelect('filterStatus', outcome);
+        setSelect('filterSite', site);
+        setSelect('filterArm', arm);
+        var search = document.getElementById('filterSearch');
+        if (search) search.value = '';
+        window.applyLosFilters();
+        var target = document.getElementById('section-patients');
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return false;
+    };
+
+    /* ── 6. Per-patient table: column sort ──────────────────────────────── */
     window.sortLosTable = function (colIdx) {
         var tbody = document.getElementById('patientTableBody');
         if (!tbody) return;
