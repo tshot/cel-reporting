@@ -1,0 +1,28 @@
+# fields.example.txt — a saved selection. Pass with --fields=yourfile.txt
+#
+# One rule per line. Anything on the command line is merged with this file.
+#
+#   int_oil_qty          include a variable (every event, every instance)
+#   -int_oil_qty         exclude a variable
+#   form:daily_control_log     include every variable of a form
+#   -form:daily_control_log    exclude every variable of a form
+#
+# PRECEDENCE
+#   1. record_id is always kept
+#   2. a variable rule beats a form rule
+#   3. at the same level, exclude beats include
+#   4. if any include is given, only what is included is kept;
+#      with only excludes, everything else is kept
+#   Identifying fields are always removed, whatever is listed.
+#
+# Find the names:  bash tools/make_wide.sh --list-forms
+#                  bash tools/make_wide.sh --vars-of=FORM_NAME
+
+# ---- example: emolliation adherence ----
+form:daily_interventionemolliation_form
+nss_hosp_code
+
+# ---- example: sepsis screening (uncomment to use) ----
+# nss_sepsis
+# nss_blood_test
+# nss_blood_culture

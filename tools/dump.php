@@ -73,8 +73,8 @@ if (!is_file($repoRoot . '/vendor/autoload.php'))
 
 require $repoRoot . '/vendor/autoload.php';
 
-// Load .env before anything reads $_ENV — same as reporting-engine/public/index.php.
-// Credentials live there, never in code. CLI scripts must do this explicitly.
+// config.php reads $_ENV. The web entry point loads .env during bootstrap;
+// a CLI script must do it explicitly.
 Dotenv\Dotenv::createImmutable($repoRoot)->safeLoad();
 
 use CEL\Reporting\Application\ReportFacade;

@@ -56,6 +56,10 @@ if (!is_file($repoRoot . '/vendor/autoload.php'))
 
 require $repoRoot . '/vendor/autoload.php';
 
+// config.php reads $_ENV. The web entry point loads .env during bootstrap;
+// a CLI script must do it explicitly.
+Dotenv\Dotenv::createImmutable($repoRoot)->safeLoad();
+
 use CEL\Shared\Infrastructure\Redcap\RedcapApiClient;
 use CEL\Shared\Domain\Metadata\WideColumnBlueprintBuilder;
 use CEL\Shared\Domain\Transformers\TransformerFactory;

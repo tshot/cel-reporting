@@ -1,146 +1,112 @@
 #!/usr/bin/env bash
 #
-# make_wide.sh — build the wide (one row per baby) export via the R pivot.
+# make_wide.sh — R route. One row per baby, de-identified, with metadata.
 #
-# The PHP wide transformer buffers the whole project and exhausts memory on
-# the full Emollient dataset. This route never buffers: RawDump streams, the
-# field map is a single metadata call, and R does the pivot.
+# RawDump streams (never buffers), the field map is one metadata call, and R
+# does the pivot. Identifying fields are dropped BEFORE the pivot, so they
+# never reach the wide file.
 #
 # Usage (from the repo root):
-#   bash tools/make_wide.sh
-#   bash tools/make_wide.sh --project=Emollient --out-dir=/tmp/emol
-#   bash tools/make_wide.sh --sample=200            # quick check first
-#   bash tools/make_wide.sh --reuse-raw             # skip the REDCap pull
-#   bash tools/make_wide.sh --verify                # cell-by-cell check (slow)
-#   bash tools/make_wide.sh --codebook              # also build the analyst metadata
-#   bash tools/make_wide.sh --deidentify            # drop identifying fields (see phi_fields.txt)
-#   bash tools/make_wide.sh --template=/tmp/cols.txt # force the engine's full column set
+#   bash tools/make_wide.sh                          full bundle
+#   bash tools/make_wide.sh --sample=200             quick trial
+#   bash tools/make_wide.sh --out-dir=/tmp/emol_0925
+#   bash tools/make_wide.sh --template=/tmp/cols.txt force the full engine column set
+#   bash tools/make_wide.sh --list-forms                 show the forms you can choose
+#   bash tools/make_wide.sh --forms=a,b                  only these forms
+#   bash tools/make_wide.sh --vars=x,y                   only these variables
+#   bash tools/make_wide.sh --forms=a --exclude-vars=x   form a, without variable x
+#   bash tools/make_wide.sh --exclude-forms=a            everything except form a
+#   bash tools/make_wide.sh --fields=list.txt            the same rules from a file
+#   bash tools/make_wide.sh --no-stata               skip the Stata files
+#   bash tools/make_wide.sh --keep-work              keep raw.csv etc. (IDENTIFIABLE)
+#   bash tools/make_wide.sh --reuse-raw --keep-work  re-pivot without re-pulling
+#
+# Output: <out-dir>/bundle/ — send that folder and nothing else.
 #
 set -euo pipefail
 
-PROJECT=Emollient
-REPORT=RawDump
-OUTDIR=/tmp/wide_export
-SAMPLE=""
-REUSE=0
-VERIFY=0
-CODEBOOK=0
-DEID=0
-TEMPLATE=""
+PROJECT=Emollient; OUTDIR=/tmp/wide_export; PREFIX=emol; ROUTE=R
+SAMPLE=""; TEMPLATE=""; REUSE=0; STATA=1; KEEP_WORK=0; ALLOW_NO_REPEATS=0
+FIELDS=""; ALLOW_MISSING=0
+INC_FORMS=""; INC_VARS=""; EXC_FORMS=""; EXC_VARS=""
+LIST_FORMS=0; VARS_OF=""; SEL_ON=0; SEL_DESC=""; HELP=0
 
 for a in "$@"; do
   case "$a" in
-    --project=*)      PROJECT="${a#*=}" ;;
-    --report=*)       REPORT="${a#*=}" ;;
-    --out-dir=*)      OUTDIR="${a#*=}" ;;
-    --sample=*)       SAMPLE="--sample=${a#*=}" ;;
-    --reuse-raw)      REUSE=1 ;;
-    --verify)         VERIFY=1 ;;
-    --codebook)       CODEBOOK=1 ;;
-    --deidentify)     DEID=1 ;;
-    --template=*)     TEMPLATE="--template=${a#*=}" ;;
-    -h|--help)        sed -n '2,20p' "$0"; exit 0 ;;
-    *) echo "Unknown option: $a" >&2; exit 2 ;;
+    --project=*)        PROJECT="${a#*=}" ;;
+    --out-dir=*)        OUTDIR="${a#*=}" ;;
+    --prefix=*)         PREFIX="${a#*=}" ;;
+    --sample=*)         SAMPLE="--sample=${a#*=}" ;;
+    --template=*)       TEMPLATE="--template=${a#*=}" ;;
+    --reuse-raw)        REUSE=1 ;;
+    --fields=*)         FIELDS="${a#*=}" ;;
+    --forms=*)          INC_FORMS="${a#*=}" ;;
+    --vars=*)           INC_VARS="${a#*=}" ;;
+    --exclude-forms=*)  EXC_FORMS="${a#*=}" ;;
+    --exclude-vars=*)   EXC_VARS="${a#*=}" ;;
+    --list-forms)       LIST_FORMS=1 ;;
+    --vars-of=*)        VARS_OF="${a#*=}"; LIST_FORMS=1 ;;
+    --allow-missing-fields) ALLOW_MISSING=1 ;;
+    --no-stata)         STATA=0 ;;
+    --keep-work)        KEEP_WORK=1 ;;
+    --allow-no-repeats) ALLOW_NO_REPEATS=1 ;;
+    --deidentify|--codebook) ;;          # always on now; accepted for old habits
+    -h|--help)          HELP=1 ;;
+    *) echo "Unknown option: $a  (try --help)" >&2; exit 2 ;;
   esac
 done
 
-# always run from the repo root, whatever directory the user is in
-cd "$(dirname "$0")/.."
-ROOT="$(pwd)"
+SEL_BITS=""
+[ -n "$INC_FORMS" ] && SEL_BITS="$SEL_BITS forms:$INC_FORMS"
+[ -n "$INC_VARS"  ] && SEL_BITS="$SEL_BITS vars:$INC_VARS"
+[ -n "$EXC_FORMS" ] && SEL_BITS="$SEL_BITS minus-forms:$EXC_FORMS"
+[ -n "$EXC_VARS"  ] && SEL_BITS="$SEL_BITS minus-vars:$EXC_VARS"
+[ -n "$FIELDS"    ] && SEL_BITS="$SEL_BITS file:$(basename "$FIELDS")"
+SEL_DESC="${SEL_BITS# }"
+[ -n "$SEL_DESC" ] && SEL_ON=1
 
-RAW="$OUTDIR/raw.csv"
-FIELDS="$OUTDIR/fields.csv"
-WIDE="$OUTDIR/wide.csv"
-LOG="$OUTDIR/make_wide.log"
+source "$(dirname "$0")/bundle_lib.sh"
+[ "$HELP" -eq 1 ] && lib_help
+lib_init
 
-mkdir -p "$OUTDIR"
-: > "$LOG"
+RAW="$WORK/raw.csv"; FMAP="$WORK/fields.csv"
 
-step()  { printf '\n\033[1m==> %s\033[0m\n' "$1" | tee -a "$LOG"; }
-note()  { printf '    %s\n' "$1" | tee -a "$LOG"; }
-fail()  { printf '\n\033[31mFAILED: %s\033[0m\n' "$1" | tee -a "$LOG"; exit 1; }
-secs()  { printf '%s' "$(date +%s)"; }
+[ "$LIST_FORMS" -eq 1 ] && { lib_preflight; lib_list_forms; }
 
-T0=$(secs)
-
-# ── preflight ──────────────────────────────────────────────────────────────
-step "Preflight"
-command -v php     >/dev/null || fail "php not found"
+lib_preflight
 command -v Rscript >/dev/null || fail "Rscript not found — apt-get install r-base-core"
-Rscript -e 'if(!requireNamespace("data.table", quietly=TRUE)) quit(status=1)' \
+Rscript -e 'if(!requireNamespace("data.table",quietly=TRUE)) quit(status=1)' \
   || fail "R package data.table missing — apt-get install r-cran-data.table"
-[ -f "$ROOT/vendor/autoload.php" ] || fail "no vendor/autoload.php in $ROOT"
-[ -f "$ROOT/projects/$PROJECT/config.php" ] || fail "unknown project: $PROJECT"
-note "repo     : $ROOT"
-note "project  : $PROJECT"
-note "output   : $OUTDIR"
 
 # ── 1. long export ─────────────────────────────────────────────────────────
 if [ "$REUSE" -eq 1 ] && [ -s "$RAW" ]; then
-  step "1/4 Long export — reusing $RAW"
-  note "$(du -h "$RAW" | cut -f1)"
+  step "1. Long export — reusing $RAW"
 else
-  step "1/4 Long export ($REPORT) — streams, does not buffer"
-  t=$(secs)
-  php tools/dump.php --project="$PROJECT" --report="$REPORT" --output="$RAW" 2>&1 | tee -a "$LOG" \
+  [ "$REUSE" -eq 1 ] && warn "--reuse-raw: no raw.csv in work/ (was the last run --keep-work?). Pulling fresh."
+  step "1. Long export (RawDump) — streams, does not buffer"
+  php tools/dump.php --project="$PROJECT" --report=RawDump --output="$RAW" 2>&1 | tee -a "$LOG" \
     || fail "dump.php failed"
   [ -s "$RAW" ] || fail "$RAW is empty"
-  note "took $(( $(secs) - t ))s, $(du -h "$RAW" | cut -f1)"
 fi
+note "$(du -h "$RAW" | cut -f1)  (IDENTIFIABLE — in work/, not bundle/)"
 
 # ── 2. field map ───────────────────────────────────────────────────────────
-step "2/4 Field map — one metadata call"
-php tools/export_field_map.php --project="$PROJECT" --out="$FIELDS" 2>&1 | tee -a "$LOG" \
-  || fail "export_field_map.php failed"
-[ -s "$FIELDS" ] || fail "$FIELDS is empty"
+lib_fieldmap
 
-# ── 3. pivot ───────────────────────────────────────────────────────────────
-EXCL=""
-if [ "$DEID" -eq 1 ]; then
-  [ -f tools/phi_fields.txt ] || fail "tools/phi_fields.txt not found"
-  EXCL="--exclude=tools/phi_fields.txt"
-  step "3/4 Pivot in R (de-identifying)"
-else
-  step "3/4 Pivot in R"
-  note "NOT de-identified — pass --deidentify if this file leaves the team"
-fi
-t=$(secs)
-Rscript tools/wide_pivot.R "$RAW" "$FIELDS" "$WIDE" $SAMPLE $TEMPLATE $EXCL 2>&1 | tee -a "$LOG" \
+# ── 3. pivot, de-identifying as it goes ────────────────────────────────────
+step "3. Pivot in R, dropping identifying fields first"
+PIVOT_OUT="$BUNDLE/wide.csv"; [ "$SEL_ON" -eq 1 ] && PIVOT_OUT="$WORK/wide_all.csv"
+Rscript tools/wide_pivot.R "$RAW" "$FMAP" "$PIVOT_OUT" \
+    --exclude=tools/phi_fields.txt $SAMPLE $TEMPLATE 2>&1 | tee -a "$LOG" \
   || fail "wide_pivot.R failed"
-[ -s "$WIDE" ] || fail "$WIDE is empty"
-note "took $(( $(secs) - t ))s"
+[ -s "$PIVOT_OUT" ] || fail "pivot output is empty"
+[ "$SEL_ON" -eq 1 ] && lib_select "$PIVOT_OUT" "$BUNDLE/wide.csv"
 
-# ── 4. checks ──────────────────────────────────────────────────────────────
-step "4/4 Row and column count check"
-php tools/csvcheck.php "$WIDE" 2>&1 | tee -a "$LOG" || fail "csvcheck failed"
-
-if [ "$VERIFY" -eq 1 ]; then
-  step "Cell-by-cell verification against the long export"
-  note "this walks every non-empty source value — slow on the full dataset"
-  php tools/verify_wide.php "$WIDE" "$RAW" ${SAMPLE:+--sample=${SAMPLE#--sample=}} 2>&1 \
-    | tee -a "$LOG" || fail "verify_wide failed"
-fi
-
-if [ "$CODEBOOK" -eq 1 ]; then
-  step "Codebook — built from the delivered header, so it matches exactly"
-  php tools/make_codebook.php --project="$PROJECT" \
-      --from-header="$WIDE" --out="$OUTDIR/${PROJECT}" 2>&1 | tee -a "$LOG" \
-    || fail "make_codebook.php failed"
-fi
-
-if [ "$DEID" -eq 1 ]; then
-  step "Final gate — confirm no identifying column survived"
-  php tools/deidentify.php "$WIDE" --check-only 2>&1 | tee -a "$LOG"
-  rc=${PIPESTATUS[0]}
-  [ "$rc" -eq 2 ] && fail "identifying columns are STILL present in $WIDE"
-  [ "$rc" -ne 0 ] && fail "deidentify --check-only failed"
-fi
-
-step "Done in $(( $(secs) - T0 ))s"
-note "wide   : $WIDE  ($(du -h "$WIDE" | cut -f1))"
-note "long   : $RAW  (NOT de-identified — contains identifiers)"
-note "fields : $FIELDS"
-[ "$CODEBOOK" -eq 1 ] && note "codebook: $OUTDIR/${PROJECT}_codebook.csv"
-note "log    : $LOG"
-[ -n "$SAMPLE" ] && note "NOTE: built from a SAMPLE — rerun without --sample for the full export"
-exit 0
+# ── 4 onwards: shared ──────────────────────────────────────────────────────
+lib_gate     "$BUNDLE/wide.csv"
+lib_shape
+lib_metadata
+lib_stata
+lib_readme
+lib_cleanup
+lib_summary

@@ -22,6 +22,10 @@ ini_set('display_errors', 1);
 $root = realpath(__DIR__ . '/..');
 require $root . '/vendor/autoload.php';
 
+
+// config.php reads $_ENV. The web entry point loads .env during bootstrap;
+// a CLI script must do it explicitly.
+Dotenv\Dotenv::createImmutable($root)->safeLoad();
 use CEL\Shared\Infrastructure\Redcap\RedcapApiClient;
 
 $opts      = getopt('', ['project:', 'record:']);

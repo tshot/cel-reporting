@@ -65,10 +65,10 @@ $monorepoRoot = dirname(__DIR__);
 $engineRoot   = $monorepoRoot . '/reporting-engine';
 $projectsRoot = $monorepoRoot . '/projects';
 
-if (!file_exists($engineRoot . '/vendor/autoload.php'))
+if (!file_exists($monorepoRoot . '/vendor/autoload.php'))
 {
     echo "ERROR: Could not locate reporting-engine/vendor/autoload.php\n";
-    echo "       Looked in: {$engineRoot}/vendor/autoload.php\n";
+    echo "       Looked in: {$monorepoRoot}/vendor/autoload.php\n";
     echo "       Run 'composer install' inside reporting-engine/ first.\n";
     exit(1);
 }
@@ -79,8 +79,12 @@ if (!is_dir($projectsRoot))
     exit(1);
 }
 
-require $engineRoot . '/vendor/autoload.php';
+require $monorepoRoot . '/vendor/autoload.php';
 
+
+// config.php reads $_ENV. The web entry point loads .env during bootstrap;
+// a CLI script must do it explicitly.
+Dotenv\Dotenv::createImmutable($monorepoRoot)->safeLoad();
 use CEL\Shared\Infrastructure\Redcap\RedcapApiClient;
 
 // ── Parse CLI options ──────────────────────────────────────────────────────────
