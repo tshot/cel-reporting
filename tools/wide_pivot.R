@@ -23,9 +23,14 @@
 #                       a field blank for EVERY record simply does not appear,
 #                       so headers vary between extracts.
 #   --exclude=FILE      de-identification. FILE lists REDCap field names, one
-#                       per line (# comments allowed). Matching columns are
-#                       dropped BEFORE the pivot, so identifiers never enter
-#                       the wide file. Use tools/phi_fields.txt.
+#                       per line (# comments allowed). An entry beginning with
+#                       * is a suffix rule: *_lat drops every field ending in
+#                       _lat. Matching columns are dropped BEFORE the pivot,
+#                       so identifiers never enter the wide file.
+#                       Use tools/phi_fields.txt.
+#   --events=FILE       event_name,event_order from export_field_map.php
+#                       --events. Without it, events fall back to day number
+#                       order and anything non-numeric sorts last.
 #   --sample=N          only the first N record_ids, for a quick check
 # ---------------------------------------------------------------------------
 
@@ -51,6 +56,8 @@ template    <- sub("--template=", "", grep("^--template=", flags, value = TRUE))
 if (length(template) == 0) template <- NA_character_
 exclude     <- sub("--exclude=", "", grep("^--exclude=", flags, value = TRUE))
 if (length(exclude) == 0) exclude <- NA_character_
+eventsfile  <- sub("--events=", "", grep("^--events=", flags, value = TRUE))
+if (length(eventsfile) == 0) eventsfile <- NA_character_
 samp        <- as.integer(sub("--sample=", "",
                  grep("^--sample=", flags, value = TRUE)))
 if (length(samp) == 0 || is.na(samp)) samp <- 0L
@@ -86,8 +93,13 @@ if (!is.na(exclude)) {
   phi <- phi[nzchar(phi) & !startsWith(phi, "#")]
   msg("De-identification: %d field(s) listed in %s", length(phi), exclude)
 
-  base <- sub("___.+$", "", names(long))
-  hit  <- base %in% phi
+  base  <- sub("___.+$", "", names(long))
+  exact <- phi[!startsWith(phi, "*")]
+  sufx  <- sub("^\\*", "", phi[startsWith(phi, "*")])
+
+  hit <- base %in% exact
+  for (sf in sufx) hit <- hit | endsWith(base, sf)
+
   if (any(hit)) {
     msg("  dropping %d column(s): %s", sum(hit),
         paste(head(names(long)[hit], 8), collapse = ", "))
@@ -95,7 +107,7 @@ if (!is.na(exclude)) {
   } else {
     msg("  no listed field present in this file")
   }
-  absent <- setdiff(phi, base)
+  absent <- setdiff(exact, base)
   if (length(absent)) msg("  listed but absent: %d", length(absent))
 }
 
@@ -184,15 +196,61 @@ if (!is.na(template)) {
   msg("  for every record is absent, so headers may differ between extracts.")
 }
 
-# ---- 6. order columns (skipped when a template already set the order) ------
+# ---- 6. order columns: dictionary order, not alphabetical --------------------
+# Sort key is event order, then form order, then repeat instance, then the
+# field's position in the REDCap data dictionary. Without this the columns come
+# out alphabetically within each event, which scatters a form's variables.
 if (is.na(template)) {
-cols  <- setdiff(names(wide), "record_id")
-parts <- data.table(col = cols)
-parts[, ev := sub("^(day[0-9]+|[a-z_]+)_arm_([0-9]+)_.*$", "\\1_arm_\\2", col)]
-parts[, daynum := suppressWarnings(as.integer(sub("^day([0-9]+)_arm_.*$", "\\1", col)))]
-parts[is.na(daynum), daynum := 9999L]
-setorder(parts, daynum, ev, col)
-setcolorder(wide, c("record_id", parts$col))
+  cols  <- setdiff(names(wide), "record_id")
+  parts <- data.table(col = cols)
+
+  # split the column name back into its parts using the known field names
+  known <- fields$field_name[nzchar(fields$field_name)]
+  known <- known[order(-nchar(known))]
+
+  base_of <- sub("___.+$", "", parts$col)
+  fld <- vapply(base_of, function(b) {
+    h <- known[b == known | endsWith(b, paste0("_", known))]
+    if (length(h)) h[1] else NA_character_
+  }, character(1), USE.NAMES = FALSE)
+  parts[, field := fld]
+
+  parts[, ev := sub("^((?:day[0-9]+|[a-z_]+)_arm_[0-9]+)_.*$", "\\1", col)]
+  parts[!grepl("_arm_[0-9]+$", ev), ev := ""]
+
+  # The instance number sits immediately before the field name. Derive it by
+  # removing the field from the end, then looking for a trailing _<digits>.
+  # A regex alone cannot do this: field names contain underscores too.
+  stem <- mapply(function(b, f) {
+    if (is.na(f)) return(NA_character_)
+    if (b == f) return("")
+    sub(paste0("_", f, "$"), "", b)
+  }, base_of, fld, USE.NAMES = FALSE)
+  inst <- suppressWarnings(as.integer(sub("^.*_([0-9]+)$", "\\1", stem)))
+  inst[!grepl("_[0-9]+$", stem)] <- NA_integer_
+  parts[, instance := fifelse(is.na(inst), 0L, inst)]
+
+  ford <- setNames(as.integer(fields$field_order), fields$field_name)
+  mord <- setNames(as.integer(fields$form_order),  fields$field_name)
+  parts[, f_ord := fifelse(is.na(field), 1e9, as.numeric(ford[field]))]
+  parts[, m_ord := fifelse(is.na(field), 1e9, as.numeric(mord[field]))]
+
+  if (!is.na(eventsfile) && file.exists(eventsfile)) {
+    evs <- fread(eventsfile, colClasses = "character", showProgress = FALSE)
+    eord <- setNames(as.integer(evs$event_order), evs$event_name)
+    parts[, e_ord := fifelse(ev %in% names(eord), as.numeric(eord[ev]), 1e9)]
+    msg("Ordering: dictionary order, events from %s", basename(eventsfile))
+  } else {
+    dn <- suppressWarnings(as.integer(sub("^day([0-9]+)_arm_.*$", "\\1", parts$col)))
+    parts[, e_ord := fifelse(is.na(dn), 1e9, as.numeric(dn))]
+    msg("Ordering: dictionary order; no --events given, events sorted by day number")
+  }
+
+  setorder(parts, e_ord, ev, m_ord, instance, f_ord, col)
+  setcolorder(wide, c("record_id", parts$col))
+
+  unres <- sum(is.na(parts$field))
+  if (unres) msg("  %d column(s) not matched to a dictionary field — placed last", unres)
 }
 
 # ---- 7. write --------------------------------------------------------------

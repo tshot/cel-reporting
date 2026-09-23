@@ -69,7 +69,7 @@ source "$(dirname "$0")/bundle_lib.sh"
 [ "$HELP" -eq 1 ] && lib_help
 lib_init
 
-RAW="$WORK/raw.csv"; FMAP="$WORK/fields.csv"
+RAW="$WORK/raw.csv"; FMAP="$WORK/fields.csv"; EVMAP="$WORK/events.csv"
 
 [ "$LIST_FORMS" -eq 1 ] && { lib_preflight; lib_list_forms; }
 
@@ -97,7 +97,7 @@ lib_fieldmap
 step "3. Pivot in R, dropping identifying fields first"
 PIVOT_OUT="$BUNDLE/wide.csv"; [ "$SEL_ON" -eq 1 ] && PIVOT_OUT="$WORK/wide_all.csv"
 Rscript tools/wide_pivot.R "$RAW" "$FMAP" "$PIVOT_OUT" \
-    --exclude=tools/phi_fields.txt $SAMPLE $TEMPLATE 2>&1 | tee -a "$LOG" \
+    --exclude=tools/phi_fields.txt --events="$EVMAP" $SAMPLE $TEMPLATE 2>&1 | tee -a "$LOG" \
   || fail "wide_pivot.R failed"
 [ -s "$PIVOT_OUT" ] || fail "pivot output is empty"
 [ "$SEL_ON" -eq 1 ] && lib_select "$PIVOT_OUT" "$BUNDLE/wide.csv"

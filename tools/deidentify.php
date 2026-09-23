@@ -88,6 +88,13 @@ function isPhiColumn(string $col, array $phi): ?string
 
     foreach ($phi as $f)
     {
+        // *suffix — every field ending that way, e.g. *_lat matches enr_lat
+        if (str_starts_with($f, '*'))
+        {
+            if (str_ends_with($base, substr($f, 1))) { return $f; }
+            continue;
+        }
+
         if ($base === $f) { return $f; }
         if (str_ends_with($base, '_' . $f)) { return $f; }
     }

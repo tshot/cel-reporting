@@ -1,17 +1,50 @@
 # phi_fields.txt — fields removed from every export for de-identification.
-# One REDCap field name per line. Blank lines and # comments ignored.
+# One entry per line. Blank lines and # comments ignored.
+#
+#   field_name    that field, at every event and every repeat instance
+#   *_suffix      every field whose name ends that way
 #
 # Matching covers all the forms a field takes in an export:
-#   fmly_mother_name
-#   day0_arm_1_family_details_and_baby_count_form_fmly_mother_name
-#   day1_arm_1_some_form_3_fmly_mother_name        (repeat instance)
+#   enr_mothers_name
+#   day0_arm_1_enrolment_form_enr_mothers_name
+#   day1_arm_1_some_form_3_enr_mothers_name        (repeat instance)
 #   baby_area___1                                  (checkbox option)
 
-# --- names ---
+# --- GPS, on every form -------------------------------------------------
+# Latitude and longitude pinpoint the household. Every form carries a pair,
+# named <prefix>_lat / <prefix>_lng, so these are suffix rules.
+*_lat
+*_lng
+
+# --- enrolment form: names ----------------------------------------------
+enr_mothers_name
+enr_fathers_name
+
+# --- enrolment form: address --------------------------------------------
+enr_state
+enr_district
+enr_pin_code
+enr_house_no
+enr_colony_block
+enr_area
+enr_city_town
+enr_landmark
+enr_cnfrm_adres
+enr_addr_verified
+
+# --- enrolment form: contact numbers ------------------------------------
+enr_mother_mobile_no
+enr_father_mobile_no
+enr_family_mobile_no
+enr_rel_nbr_mobile_no
+enr_confirm_contacts
+enr_contacts_verified
+
+# --- family details form: names -----------------------------------------
 fmly_mother_name
 fmly_father_name
 
-# --- address at enrolment ---
+# --- baby address --------------------------------------------------------
 baby_state
 baby_district
 baby_pin_code
@@ -21,13 +54,13 @@ baby_area
 baby_city_town
 baby_landmark
 
-# --- contact numbers at enrolment ---
+# --- baby contact numbers ------------------------------------------------
 baby_mother_mobile_no
 baby_father_mobile_no
 baby_family_mobile
 baby_rel_nbr_contact
 
-# --- address at discharge ---
+# --- discharge: address --------------------------------------------------
 dis_state
 dis_district
 dis_pin_code
@@ -37,7 +70,7 @@ dis_area
 dis_city_town
 dis_landmark
 
-# --- contact numbers at discharge ---
+# --- discharge: contact numbers ------------------------------------------
 dis_mother_mobile_no
 dis_family_mobile_no
 dis_rel_nbr_mobile_no

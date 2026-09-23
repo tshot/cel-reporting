@@ -172,7 +172,8 @@ lib_sel_args() {
 lib_fieldmap() {
   [ -s "$FMAP" ] && return 0
   step "Field map (data dictionary)"
-  php tools/export_field_map.php --project="$PROJECT" --out="$FMAP" 2>&1 | tee -a "$LOG" \
+  php tools/export_field_map.php --project="$PROJECT" --out="$FMAP" \
+      ${EVMAP:+--events="$EVMAP"} 2>&1 | tee -a "$LOG" \
     || fail "export_field_map.php failed"
 }
 
