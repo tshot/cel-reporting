@@ -16,6 +16,8 @@
 #   bash tools/make_wide_php.sh --forms=a --exclude-vars=x   form a, without variable x
 #   bash tools/make_wide_php.sh --exclude-forms=a            everything except form a
 #   bash tools/make_wide_php.sh --fields=list.txt            the same rules from a file
+#   bash tools/make_wide_php.sh --drop-empty-rows            drop babies with no data
+#   bash tools/make_wide_php.sh --min-fields=3               ... keep only rows with 3+ values
 #   bash tools/make_wide_php.sh --no-stata           skip the Stata files
 #   bash tools/make_wide_php.sh --keep-work          keep the identifiable export
 #
@@ -25,7 +27,7 @@ set -euo pipefail
 
 PROJECT=Emollient; REPORT=WideDump; OUTDIR=/tmp/wide_export_php; PREFIX=emol; ROUTE=PHP
 MEM=4G; STATA=1; KEEP_WORK=0; ALLOW_NO_REPEATS=0; SAMPLE=""
-FIELDS=""; ALLOW_MISSING=0
+FIELDS=""; ALLOW_MISSING=0; DROP_EMPTY=0; MIN_FIELDS=1
 INC_FORMS=""; INC_VARS=""; EXC_FORMS=""; EXC_VARS=""
 LIST_FORMS=0; VARS_OF=""; SEL_ON=0; SEL_DESC=""; HELP=0
 
@@ -44,6 +46,8 @@ for a in "$@"; do
     --list-forms)       LIST_FORMS=1 ;;
     --vars-of=*)        VARS_OF="${a#*=}"; LIST_FORMS=1 ;;
     --allow-missing-fields) ALLOW_MISSING=1 ;;
+    --drop-empty-rows)  DROP_EMPTY=1 ;;
+    --min-fields=*)     MIN_FIELDS="${a#*=}"; DROP_EMPTY=1 ;;
     --no-stata)         STATA=0 ;;
     --keep-work)        KEEP_WORK=1 ;;
     --allow-no-repeats) ALLOW_NO_REPEATS=1 ;;
@@ -104,7 +108,8 @@ php tools/deidentify.php "$SRC" "$BUNDLE/wide.csv" 2>&1 | grep -E "columns|writt
 [ -s "$BUNDLE/wide.csv" ] || fail "de-identified wide.csv is empty"
 
 # ── 3 onwards: shared ──────────────────────────────────────────────────────
-lib_gate     "$BUNDLE/wide.csv"
+lib_gate       "$BUNDLE/wide.csv"
+lib_drop_empty "$BUNDLE/wide.csv"
 lib_shape
 lib_metadata
 lib_stata

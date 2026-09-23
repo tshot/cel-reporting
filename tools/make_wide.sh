@@ -17,6 +17,8 @@
 #   bash tools/make_wide.sh --forms=a --exclude-vars=x   form a, without variable x
 #   bash tools/make_wide.sh --exclude-forms=a            everything except form a
 #   bash tools/make_wide.sh --fields=list.txt            the same rules from a file
+#   bash tools/make_wide.sh --drop-empty-rows            drop babies with no data
+#   bash tools/make_wide.sh --min-fields=3               ... keep only rows with 3+ values
 #   bash tools/make_wide.sh --no-stata               skip the Stata files
 #   bash tools/make_wide.sh --keep-work              keep raw.csv etc. (IDENTIFIABLE)
 #   bash tools/make_wide.sh --reuse-raw --keep-work  re-pivot without re-pulling
@@ -27,7 +29,7 @@ set -euo pipefail
 
 PROJECT=Emollient; OUTDIR=/tmp/wide_export; PREFIX=emol; ROUTE=R
 SAMPLE=""; TEMPLATE=""; REUSE=0; STATA=1; KEEP_WORK=0; ALLOW_NO_REPEATS=0
-FIELDS=""; ALLOW_MISSING=0
+FIELDS=""; ALLOW_MISSING=0; DROP_EMPTY=0; MIN_FIELDS=1
 INC_FORMS=""; INC_VARS=""; EXC_FORMS=""; EXC_VARS=""
 LIST_FORMS=0; VARS_OF=""; SEL_ON=0; SEL_DESC=""; HELP=0
 
@@ -47,6 +49,8 @@ for a in "$@"; do
     --list-forms)       LIST_FORMS=1 ;;
     --vars-of=*)        VARS_OF="${a#*=}"; LIST_FORMS=1 ;;
     --allow-missing-fields) ALLOW_MISSING=1 ;;
+    --drop-empty-rows)  DROP_EMPTY=1 ;;
+    --min-fields=*)     MIN_FIELDS="${a#*=}"; DROP_EMPTY=1 ;;
     --no-stata)         STATA=0 ;;
     --keep-work)        KEEP_WORK=1 ;;
     --allow-no-repeats) ALLOW_NO_REPEATS=1 ;;
@@ -103,7 +107,8 @@ Rscript tools/wide_pivot.R "$RAW" "$FMAP" "$PIVOT_OUT" \
 [ "$SEL_ON" -eq 1 ] && lib_select "$PIVOT_OUT" "$BUNDLE/wide.csv"
 
 # ── 4 onwards: shared ──────────────────────────────────────────────────────
-lib_gate     "$BUNDLE/wide.csv"
+lib_gate       "$BUNDLE/wide.csv"
+lib_drop_empty "$BUNDLE/wide.csv"
 lib_shape
 lib_metadata
 lib_stata

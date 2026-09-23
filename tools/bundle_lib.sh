@@ -61,6 +61,11 @@ OTHER OPTIONS
   --prefix=NAME          filename prefix inside the bundle (default emol)
   --no-stata             skip the Stata files
   --keep-work            keep work/ — WARNING: it holds identifiable data
+  --drop-empty-rows      remove records where every field is blank. Common
+                         after a subset: a baby that never reached the chosen
+                         forms leaves a row with only record_id filled.
+  --min-fields=N         stronger form — keep a record only if it has at
+                         least N non-empty fields. Implies --drop-empty-rows.
   --allow-no-repeats     do not fail when no repeat-instance columns are found
   -h, --help             this text
 EOF
@@ -138,7 +143,7 @@ lib_preflight() {
   [ -f "$ROOT/vendor/autoload.php" ]            || fail "no vendor/autoload.php in $ROOT"
   [ -f "$ROOT/projects/$PROJECT/config.php" ]   || fail "unknown project: $PROJECT"
   [ -f "$ROOT/tools/phi_fields.txt" ]           || fail "tools/phi_fields.txt not found"
-  for t in deidentify.php make_codebook.php csvcheck.php; do
+  for t in deidentify.php make_codebook.php csvcheck.php drop_empty_rows.php; do
     [ -f "$ROOT/tools/$t" ] || fail "tools/$t not found"
   done
   [ "$STATA" -eq 1 ] && { [ -f "$ROOT/tools/stata_prep.php" ] || fail "tools/stata_prep.php not found"; }
@@ -215,6 +220,27 @@ lib_gate() {
   note "clean"
 }
 
+# $1 = the wide file, edited in place. Always reports; only removes when asked.
+lib_drop_empty() {
+  step "Records with no data"
+  local rc=0 tmp="$OUTDIR/.empty.out"
+  php tools/drop_empty_rows.php "$1" --check-only --min-fields="${MIN_FIELDS:-1}" > "$tmp" 2>&1 || rc=$?
+  grep -E "^rows|^threshold" "$tmp" | sed 's/^/    /' | tee -a "$LOG"
+  local n; n=$(sed -n 's/^rows *: *[0-9]* total, [0-9]* kept, \([0-9]*\) dropped.*/\1/p' "$tmp")
+  rm -f "$tmp"
+  [ "$rc" -ne 0 ] && fail "drop_empty_rows.php failed (exit $rc)"
+
+  if [ "${DROP_EMPTY:-0}" -eq 0 ]; then
+    [ "${n:-0}" -gt 0 ] && warn "$n record(s) have no data — pass --drop-empty-rows to remove them"
+    return 0
+  fi
+
+  php tools/drop_empty_rows.php "$1" "$OUTDIR/.wide.trim" --min-fields="${MIN_FIELDS:-1}" >> "$LOG" 2>&1 \
+    || fail "drop_empty_rows.php failed writing the trimmed file"
+  mv "$OUTDIR/.wide.trim" "$1"
+  note "removed ${n:-0} record(s) with no data"
+}
+
 lib_shape() {
   step "Row and column count check"
   php tools/csvcheck.php "$BUNDLE/wide.csv" 2>&1 | tee -a "$LOG" | grep -E "columns|rows|ragged"
@@ -259,6 +285,7 @@ lib_stata() {
 
 lib_readme() {
   step "README"
+  [ "${DROP_EMPTY:-0}" -eq 1 ] && ROWS_NOTE="records with fewer than ${MIN_FIELDS:-1} non-empty field(s) removed"
   if [ "$SEL_ON" -eq 1 ]; then
     SUBSET_NOTE="SUBSET — $SEL_DESC
                  (the codebook describes exactly these columns, nothing more)"
@@ -280,9 +307,10 @@ STATA
 ${PROJECT^^} STUDY — DATA EXPORT
 Extract date : $(date '+%d %B %Y %H:%M')
 Produced by  : $ROUTE route
-Records      : $ROWS (one row per baby)
+Rows         : $ROWS (one row per baby)
 Columns      : $COLS
 Content      : ${SUBSET_NOTE:-all fields}
+Records      : ${ROWS_NOTE:-all records kept}
 
 DATA
   wide.csv                one row per baby, full column names (R / Python)

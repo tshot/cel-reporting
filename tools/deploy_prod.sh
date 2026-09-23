@@ -39,6 +39,26 @@ fi
 UNTRACKED=$(git status --porcelain | grep -E '^\?\?' || true)
 [ -n "$UNTRACKED" ] && { echo "    Untracked (ignored by the pull):"; echo "$UNTRACKED" | sed 's/^/      /'; }
 
+step "Checking for files the pull cannot overwrite"
+git fetch -q origin || die "fetch failed"
+BR=$(git rev-parse --abbrev-ref HEAD)
+INCOMING=$(git diff --name-only HEAD.."origin/$BR" 2>/dev/null || true)
+COLLIDE=""
+for f in $INCOMING; do
+  if [ -f "$f" ] && ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+    COLLIDE="$COLLIDE $f"
+  fi
+done
+if [ -n "$COLLIDE" ]; then
+  echo "    These files exist here but are not tracked, and the pull wants to write them:"
+  for f in $COLLIDE; do echo "      $f"; done
+  echo "    Usually a file copied here by hand that has since been committed on dev."
+  ask "delete the local copies and take the committed versions?" || die "cancelled — move or delete them, then rerun"
+  for f in $COLLIDE; do rm -f "$f"; echo "    removed $f"; done
+else
+  echo "    none"
+fi
+
 step "Pull"
 BEFORE=$(git rev-parse HEAD)
 git pull || die "pull failed"
