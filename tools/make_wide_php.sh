@@ -65,6 +65,13 @@ SEL_BITS=""
 SEL_DESC="${SEL_BITS# }"
 [ -n "$SEL_DESC" ] && SEL_ON=1
 
+# Bash does not expand a tilde after "=", so --out-dir=~/x arrives literal and
+# the shell creates a directory actually named "~". R's fread DOES expand it,
+# so the two disagree and the pivot cannot find the file it was just given.
+case "$OUTDIR" in
+  "~")   OUTDIR="$HOME" ;;
+  "~/"*) OUTDIR="$HOME/${OUTDIR#\~/}" ;;
+esac
 source "$(dirname "$0")/bundle_lib.sh"
 [ "$HELP" -eq 1 ] && lib_help
 lib_init

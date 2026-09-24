@@ -128,7 +128,15 @@ $outputDir = __DIR__ . '/output';
 if (!empty($opts['output']))
 {
     $rawOutput = $opts['output'];
-    $output = (str_starts_with($rawOutput, '/') || str_starts_with($rawOutput, '~'))
+
+    // PHP does not expand ~; left alone it would create a directory named "~".
+    if (str_starts_with($rawOutput, '~/'))
+    {
+        $home      = getenv('HOME') ?: '';
+        $rawOutput = $home . substr($rawOutput, 1);
+    }
+
+    $output = str_starts_with($rawOutput, '/')
         ? $rawOutput
         : getcwd() . '/' . $rawOutput;
 }
