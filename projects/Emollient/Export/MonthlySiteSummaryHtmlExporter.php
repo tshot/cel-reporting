@@ -80,7 +80,9 @@ class MonthlySiteSummaryHtmlExporter implements ExporterInterface
         $diag     = $p['diagnostics']  ?? [];
 
         if (!$months || !$sites) {
-            return $this->shell('<div class="empty">No records matched this period and site selection.</div>', $period);
+            return $this->shell(
+                '<div class="empty">No records matched this period and site selection.</div>',
+                $period, null, $p['report_title'] ?? 'Monthly Site Summary');
         }
 
         // Everything the page needs, handed to the browser once.
@@ -98,27 +100,30 @@ class MonthlySiteSummaryHtmlExporter implements ExporterInterface
             'seriesDark'  => self::SERIES_DARK,
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 
-        $body = $this->header($period)
+        $title = $p['report_title'] ?? 'Monthly Site Summary';
+
+        $body = $this->header($period, $title)
               . $this->controls($sites, $labels)
               . $this->charts()
               . '<div id="tableHost"></div>'
               . $this->dataNotes($diag, $p['exclusions'] ?? [])
               . $this->definitions($p['definitions'] ?? []);
 
-        return $this->shell($body, $period, $data);
+        return $this->shell($body, $period, $data, $title);
     }
 
     // ── pieces ───────────────────────────────────────────────────────────
 
-    private function header(array $period): string
+    private function header(array $period, string $title): string
     {
         $from = $this->e($period['date_from'] ?? '');
         $to   = $this->e($period['date_to']   ?? '');
         $gen  = $this->e($period['generated'] ?? '');
+        $h1   = $this->e($title);
 
         return <<<HTML
         <header class="rep-head">
-          <h1>Monthly Site Summary</h1>
+          <h1>{$h1}</h1>
           <p class="sub">Enrollment, LAMA, DOPR and SAE by site and month
              &middot; {$from} to {$to}
              &middot; generated {$gen}</p>
@@ -255,12 +260,17 @@ class MonthlySiteSummaryHtmlExporter implements ExporterInterface
 
     // ── shell ────────────────────────────────────────────────────────────
 
-    private function shell(string $body, array $period, ?string $data = null): string
-    {
+    private function shell(
+        string $body,
+        array $period,
+        ?string $data = null,
+        string $name = 'Monthly Site Summary'
+    ): string {
         $css     = $this->css();
         $js      = $data !== null ? '<script>const REPORT = ' . $data . ';' . $this->js() . '</script>' : '';
         $toolbar = $this->toolbar;
-        $title   = 'Monthly Site Summary — ' . $this->e($period['date_to'] ?? '');
+        // Browser tab and the filename a "save page as" suggests.
+        $title   = $this->e($name) . ' — ' . $this->e($period['date_to'] ?? '');
 
         return <<<HTML
         <!doctype html>

@@ -88,7 +88,9 @@ class MonthlySiteSummaryExcelExporter implements ExporterInterface
         $types    = $p['discharge_type_labels'] ?? [];
         $period   = $p['period']       ?? [];
 
-        $stamp = 'Period ' . ($period['date_from'] ?? '') . ' to ' . ($period['date_to'] ?? '')
+        $name  = $p['report_title'] ?? 'Monthly Site Summary';
+        $stamp = $name
+               . '   |   Period ' . ($period['date_from'] ?? '') . ' to ' . ($period['date_to'] ?? '')
                . '   |   generated ' . ($period['generated'] ?? '');
 
         // ── 1. Summary ───────────────────────────────────────────────────

@@ -707,41 +707,6 @@ return [
     |--------------------------------------------------------------------------
     */
 
-   /* 'WeightAnalysis' => [
-        'group' => 'Clinical Reports',
-        'mode'       => 'aggregate',
-        'aggregator' => 'weight_analysis',
-        'exporter'   => 'weight_analysis',
-        'formats'    => ['html', 'download_html', 'pdf', 'csv', 'section'],
-        'forms'      => [
-            'baby_prescreening_and_screening_form',
-            'daily_clinical_monitoring',
-            'discharge_form',
-        ],
- 
-        'fields'     => [
-            // Day 0 — Screening form (enrolled baby identification)
-            'baby_eligible_enroll',
-            'baby_birth_wt_hosp',
-            'baby_weight_nicu',
-            'baby_sex',
-            'baby_hosp_code',
-            // Daily monitoring form (days 1–28)
-            'dcm_newborn_weight_1',
-            'dcm_newborn_weight_2',
-            // Discharge form
-            'dis_baby_weight_1',
-            'dis_baby_weight_2',
-            'dis_hosp_code',
-            'dis_study_arm',
-        ],
-        'events'     => array_merge(
-            ['day0_arm_1'],
-            DAILY_EVENTS,
-            ['discharge_arm_1']
-        ),
-    ], */
-
     // CSV-only diagnostic dump — per-patient raw weight values
     'WeightDiagnostic' => [
         'group' => 'Diagnostics & Exports',
@@ -1385,6 +1350,7 @@ return [
     */
     'MonthlySiteSummary' => [
         'group'            => 'Clinical Reports',
+        'title'            => 'Monthly Site Summary for Enrollment/DOPR/LAMA/SAE',
         'mode'             => 'aggregate',
         'aggregator'       => 'monthly_site_summary',
         'exporter'         => 'monthly_site_summary',

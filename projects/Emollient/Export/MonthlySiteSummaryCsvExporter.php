@@ -83,7 +83,7 @@ class MonthlySiteSummaryCsvExporter implements ExporterInterface
         $row = function (array $r) use (&$out) { $out .= $this->line($r); };
 
         // ── provenance first, so a stray copy can still be identified ────
-        $row(['Monthly Site Summary — Emollient']);
+        $row([($p['report_title'] ?? 'Monthly Site Summary') . ' — Emollient']);
         $row(['Period', ($period['date_from'] ?? '') . ' to ' . ($period['date_to'] ?? '')]);
         $row(['Generated', $period['generated'] ?? '']);
         $row([]);
