@@ -707,7 +707,7 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'WeightAnalysis' => [
+   /* 'WeightAnalysis' => [
         'group' => 'Clinical Reports',
         'mode'       => 'aggregate',
         'aggregator' => 'weight_analysis',
@@ -718,6 +718,7 @@ return [
             'daily_clinical_monitoring',
             'discharge_form',
         ],
+ 
         'fields'     => [
             // Day 0 — Screening form (enrolled baby identification)
             'baby_eligible_enroll',
@@ -739,7 +740,7 @@ return [
             DAILY_EVENTS,
             ['discharge_arm_1']
         ),
-    ],
+    ], */
 
     // CSV-only diagnostic dump — per-patient raw weight values
     'WeightDiagnostic' => [
@@ -1354,6 +1355,54 @@ return [
             // ── 29-day follow-up (day29_arm_1) ───────────────────────────
             'fu28_alive_day28',
             'fu28_study_arm',
+        ],
+    ],
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | MONTHLY SITE SUMMARY  (TSC)
+    |--------------------------------------------------------------------------
+    | Enrollment, LAMA, DOPR and SAE by site and month.
+    |
+    |   Enrolled  enr_consent_granted = Yes and enr_datetime present
+    |   LAMA      dis_discharge_type = TYP_LAMA
+    |   DOPR      dis_discharge_type = TYP_DOPR
+    |   SAE       sae_start_date (Q8) present  -- NOT Q5 sae_datetime
+    |
+    | An event counts in the month of its own date, and only when that date is
+    | recorded. Anything recorded without its date is reported under Data notes
+    | rather than silently dropped.
+    |
+    | NOT counted: discharges on the "after 28 days of stay" form. Set
+    | 'include_post_28' => true to include them.
+    |
+    | URL:
+    |   ?project=Emollient&report=MonthlySiteSummary&format=html
+    |   ...&format=excel
+    |   ...&sites=JSS,SNMC&date_from=2026-04-01&date_to=2026-09-30
+    |--------------------------------------------------------------------------
+    */
+    'MonthlySiteSummary' => [
+        'group'            => 'Clinical Reports',
+        'mode'             => 'aggregate',
+        'aggregator'       => 'monthly_site_summary',
+        'exporter'         => 'monthly_site_summary',
+        'formats'          => ['html', 'download_html', 'pdf', 'csv', 'excel'],
+        'site_code_field'  => 'enr_hosp_code',
+        'site_labels_path' => __DIR__ . '/site_labels.php',
+        'date_from'        => STUDY_START,
+        'date_to'          => date('Y-m-d'),
+        'events'           => ['day0_arm_1', 'discharge_arm_1', 'other_forms_arm_1'],
+        'fields'           => [
+            'record_id',
+            // enrolment (day0_arm_1)
+            'enr_datetime', 'enr_consent_granted', 'enr_hosp_code', 'enr_study_arm',
+            // discharge (discharge_arm_1)
+            'dis_datetime', 'dis_discharge_type', 'dis_in_hosp', 'dis_hosp_code',
+            // SAE (other_forms_arm_1) -- sae_datetime is fetched only so the
+            // report can say how Q5 and Q8 compare; it never dates an SAE.
+            'sae_start_date', 'sae_datetime', 'sae_hosp_code',
         ],
     ],
 

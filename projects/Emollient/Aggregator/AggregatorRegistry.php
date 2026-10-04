@@ -213,5 +213,22 @@ class AggregatorRegistry
                 $cfg['site_filter'] ?? []
             )
         );
+
+        // Monthly Site Summary — Enrollment, LAMA, DOPR and SAE by site and
+        // month, on both the event and enrolment-cohort bases. See the class
+        // docblock for why the two can disagree.
+        self::register('monthly_site_summary', fn($pk, $cfg) =>
+            new MonthlySiteSummaryAggregator(
+                $pk,
+                $cfg['site_filter'] ?? [],
+                $cfg['date_from']   ?? null,
+                $cfg['date_to']     ?? null,
+                is_file(__DIR__ . '/../site_labels.php')
+                    ? require __DIR__ . '/../site_labels.php'
+                    : [],
+                (bool)($cfg['include_post_28'] ?? false)
+            )
+        );
+
     }
 }
