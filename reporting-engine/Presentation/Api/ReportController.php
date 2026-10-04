@@ -492,11 +492,16 @@ class ReportController
     </div>";
         }
 
+        // Display title from reports.php 'title'; the array key otherwise.
+        $toolbarTitle = $this->reportDisplayTitle(
+            $this->loadReportsConfig($project)[$report] ?? [], $report
+        );
+
         return "
 <div class='report-toolbar'>
     <div class='toolbar-left'>
         {$homeLink}
-        <span class='toolbar-title'>{$report}</span>
+        <span class='toolbar-title'>{$toolbarTitle}</span>
     </div>
     <div class='toolbar-actions'>
         {$htmlBtn}
@@ -600,7 +605,9 @@ class ReportController
                     $pdfLink   = in_array('pdf',           $supported) ? "<a href='{$filteredBase}&format=pdf'>PDF</a>"           : '<span style="color:#bbb">–</span>';
 
                     $reportRows .= "<tr>"
-                        . "<td class='report-name'><strong>{$reportName}</strong></td>"
+                        . "<td class='report-name'><strong>"
+                        . $this->reportDisplayTitle($reportDef, $reportName)
+                        . "</strong></td>"
                         . "<td>{$viewLink}</td>"
                         . "<td>{$htmlLink}</td>"
                         . "<td>{$csvLink}</td>"
@@ -695,4 +702,24 @@ class ReportController
 <?php
         echo ob_get_clean();
     }
+
+    /**
+     * A report's display name.
+     *
+     * The array key in reports.php is the report's identity — it is the
+     * report= value in every URL and the stem of the exporter aliases — so it
+     * must not change when someone wants a longer or friendlier name. A report
+     * may set 'title' for that; everything without one keeps showing its key,
+     * exactly as before.
+     */
+    private function reportDisplayTitle(array $reportDef, string $fallback): string
+    {
+        $title = trim((string)($reportDef['title'] ?? ''));
+        return htmlspecialchars(
+            $title !== '' ? $title : $fallback,
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        );
+    }
+
 }

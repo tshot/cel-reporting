@@ -61,7 +61,14 @@ class ReportFacade implements ProjectReportFacadeInterface
             $result['site_labels'] = $siteLabels;
         }
 
-        // ── 2. Label map ───────────────────────────────────────────────────
+		// A report's displayed title comes from reports.php 'title', so renaming it
+		// never needs a code change. The array key stays as it is — it is in the URL
+		// and in the exporter aliases.
+		if (!empty($definition['title'])) 
+		{
+			$result['report_title'] = $definition['title'];
+		}
+				// ── 2. Label map ───────────────────────────────────────────────────
         // REDCap option code → human label, used by demographics renderer.
         $labelMap = $this->loadLabelMap($definition);
 
