@@ -111,6 +111,52 @@ class RedcapApiClient
 
 
 
+    /**
+     * Stream rows for a GIVEN list of record IDs (no fetchRecordIds() call).
+     *
+     * Same request shape as stream(), but the caller decides which records —
+     * e.g. only enrolled babies — so a detail pull over many events stays small.
+     */
+    public function streamRecords(
+        array $recordIds,
+        array $fields    = [],
+        array $forms     = [],
+        array $events    = [],
+        int   $chunkSize = 100
+    ): \Generator
+    {
+        if (empty($recordIds)) return;
+
+        $primaryKey = $this->getPrimaryKey();
+        if (!empty($fields) && !in_array($primaryKey, $fields, true)) {
+            $fields[] = $primaryKey;
+        }
+
+        foreach (array_chunk(array_values($recordIds), max(1, $chunkSize)) as $chunk)
+        {
+            $post = [
+                'token'        => $this->token,
+                'content'      => 'record',
+                'format'       => 'json',
+                'records'      => $chunk,
+                'returnFormat' => 'json',
+            ];
+            if (!empty($fields)) $post['fields'] = $fields;
+            if (!empty($forms))  $post['forms']  = $forms;
+            if (!empty($events)) $post['events'] = $events;
+
+            $data = json_decode($this->post($post), true);
+
+            if (!is_array($data) || isset($data['error']))
+            {
+                throw new \Exception("REDCap API Error: " . ($data['error'] ?? 'Unknown error'));
+            }
+
+            foreach ($data as $row) yield $row;
+            unset($data);
+        }
+    }
+
     private function post(array $post): string
     {
         $ch = curl_init();

@@ -65,6 +65,8 @@ class WeeklyMeetingCsvExporter implements ExporterInterface
         $prescreening = $payload['prescreening'] ?? [];
         $screening    = $payload['screening']    ?? [];
         $discharge    = $payload['discharge']    ?? [];
+        $sepsis       = $payload['sepsis']       ?? [];
+        $emollient    = $payload['emollient']    ?? [];
         $metricMeta   = $payload['metricMeta']   ?? [];
         $period       = $payload['period']       ?? [];
         $dateFrom     = $period['date_from']     ?? '';
@@ -72,7 +74,7 @@ class WeeklyMeetingCsvExporter implements ExporterInterface
 
         // Build ordered site columns
         $sites = [];
-        foreach ([$prescreening, $screening, $discharge] as $sec) {
+        foreach ([$prescreening, $screening, $discharge, $sepsis, $emollient] as $sec) {
             foreach ($sec as $siteCounts) {
                 foreach (array_keys($siteCounts) as $site) {
                     if ($site !== 'Total') $sites[$site] = true;
@@ -190,6 +192,43 @@ class WeeklyMeetingCsvExporter implements ExporterInterface
             $out .= $this->csv($row);
         }
 
+        // ── Section 4: Sepsis & Blood Workup ──────────────────────────────────
+        $out .= $this->csv([]);
+        $out .= $this->csv(['=== SEPSIS & BLOOD WORKUP (date field: nss_datetime) ===']);
+        $out .= $this->metaRows($sepsis, $payload['sepsisMeta'] ?? [], $columns);
+
+        // ── Section 5: Emolliation Stopped ────────────────────────────────────
+        $out .= $this->csv([]);
+        $out .= $this->csv(['=== EMOLLIATION STOPPED (date field: int_datetime) ===']);
+        $out .= $this->metaRows($emollient, $payload['emollientMeta'] ?? [], $columns);
+
+        return $out;
+    }
+
+    /**
+     * Rows for a section described by a self-contained meta array
+     * ([metric => [label, role, section]]). Sub-detail rows are indented.
+     */
+    private function metaRows(array $data, array $meta, array $columns): string
+    {
+        $out         = '';
+        $lastSection = null;
+        foreach ($meta as $metric => $m) {
+            if (str_ends_with($metric, '_cult_other') && (int)($data[$metric]['Total'] ?? 0) === 0) continue;
+
+            $section = $m['section'] ?? '';
+            if ($section !== $lastSection) {
+                $lastSection = $section;
+                $out .= $this->csv(["--- {$section} ---"]);
+            }
+            $indent = ($m['role'] ?? '') === 'sub2' ? '  ' : '';
+            $row = [$section, $indent . ($m['label'] ?? $metric)];
+            foreach ($columns as $col) {
+                $row[] = $data[$metric][$col] ?? 0;
+            }
+            $out .= $this->csv($row);
+        }
+        if (!$meta) $out .= $this->csv(['', 'No data for this period']);
         return $out;
     }
 

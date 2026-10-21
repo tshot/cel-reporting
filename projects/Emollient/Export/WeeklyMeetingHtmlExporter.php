@@ -59,6 +59,8 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
         $prescreening = $payload['prescreening'] ?? [];
         $screening    = $payload['screening']    ?? [];
         $discharge    = $payload['discharge']    ?? [];
+        $sepsis       = $payload['sepsis']       ?? [];
+        $emollient    = $payload['emollient']    ?? [];
         $metricMeta   = $payload['metricMeta']   ?? [];
         $siteLabels   = $payload['site_labels']  ?? [];
         $period       = $payload['period']       ?? [];
@@ -73,9 +75,9 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
         $dateTo   = $period['date_to']   ?? null;
         $dateRange = $this->dateRangeLabel($dateFrom, $dateTo);
 
-        // Build ordered site columns from all three sections
+        // Build ordered site columns from all five sections
         $allSites = [];
-        foreach ([$prescreening, $screening, $discharge] as $sectionData) {
+        foreach ([$prescreening, $screening, $discharge, $sepsis, $emollient] as $sectionData) {
             foreach ($sectionData as $siteCounts) {
                 foreach (array_keys($siteCounts) as $site) {
                     if ($site !== 'Total') $allSites[$site] = true;
@@ -122,7 +124,7 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
       <div class="report-period"><?= htmlspecialchars($dateRange) ?></div>
     </div>
     <div class="wm-controls" style="margin-bottom:0">
-      <button class="wm-btn" onclick="wmDownloadCsv()">&#8659; Export CSV</button>
+      <button class="wm-btn" onclick="wmDownloadFormat('csv')">&#8659; Export CSV</button>
       <button class="wm-btn wm-btn-secondary" onclick="wmDownloadExcel()">&#8659; Download Data (Excel)</button>
       <button class="wm-btn wm-btn-secondary" onclick="window.print()">&#x1F5A8; Print</button>
     </div>
@@ -164,22 +166,87 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
         columns:    $columns,
         siteLabels: $siteLabels
     );
+
+    // ── Sections 4 & 5 come from a second pull — show its failure in both ───
+    $tm        = $payload['timing'] ?? [];
+    $fetchErr  = !empty($tm['detail_error'])
+        ? '<strong style="color:#c0392b">Sepsis / emolliation data could not be fetched from REDCap: '
+          . htmlspecialchars($tm['detail_error']) . ' — figures below are incomplete.</strong>'
+        : '';
+
+    // ── Section 4: Sepsis & Blood Workup ─────────────────────────────────────
+    $sn = $payload['sepsisNotes'] ?? [];
+    echo $this->renderMetaSection(
+        title:      'Sepsis & Blood Workup',
+        dateField:  'nss_datetime',
+        dateRange:  $dateRange,
+        data:       $sepsis,
+        meta:       $payload['sepsisMeta'] ?? [],
+        columns:    $columns,
+        siteLabels: $siteLabels,
+        notes:      array_filter([
+            $fetchErr,
+            'Counts are babies. Tests are counted on the days carrying that impression; a baby counts once per test. '
+          . 'One culture result per baby (Positive &gt; Negative &gt; Awaited). % = of babies in the group; culture results = of babies with culture done. '
+          . 'Baby-wise detail: Excel sheets “Sepsis PerBaby” and “Sepsis Forms”.',
+            ($sn['exclusive'] ?? true)
+                ? 'Suspected excludes babies also confirmed in the period, so Confirmed + Suspected = distinct babies (add &amp;sepsis_exclusive=0 to the URL to count them in both).'
+                : 'A baby with both impressions in the period is counted in both Confirmed and Suspected (remove &amp;sepsis_exclusive=0 from the URL to count each baby once).',
+            !empty($sn['undated']) ? (int)$sn['undated'] . ' sepsis form(s) with no nss_datetime were not counted.' : '',
+            !empty($sn['no_site']) ? (int)$sn['no_site'] . ' sepsis form(s) with no site were not counted.' : '',
+            !empty($sn['other_result_codes'])
+                ? 'Other culture result codes: ' . htmlspecialchars(implode(', ', array_keys($sn['other_result_codes']))) . '.' : '',
+        ])
+    );
+
+    // ── Section 5: Emolliation Stopped ───────────────────────────────────────
+    $en = $payload['emollientNotes'] ?? [];
+    echo $this->renderMetaSection(
+        title:      'Emolliation Stopped',
+        dateField:  'int_datetime',
+        dateRange:  $dateRange,
+        data:       $emollient,
+        meta:       $payload['emollientMeta'] ?? [],
+        columns:    $columns,
+        siteLabels: $siteLabels,
+        notes:      array_filter([
+            $fetchErr,
+            'Stopped = int_emoliate_baby is N. Full day stopped = every recorded instance of a study day is N. '
+          . 'An instance can carry more than one reason, so reason rows can add up to more than the stopped count. '
+          . 'Baby-wise detail: Excel sheets “Emollient PerBaby” and “Emollient Stopped”.',
+            !empty($en['undated']) ? (int)$en['undated'] . ' emolliation instance(s) with no int_datetime were not counted.' : '',
+            !empty($en['no_site']) ? (int)$en['no_site'] . ' emolliation instance(s) with no site were not counted.' : '',
+        ])
+    );
+
+    // ── Timing footer (screen only) ──────────────────────────────────────────
+    if ($tm) {
+        $parts = ['Main REDCap pull + sections 1–3: ' . ($tm['main_seconds'] ?? '?') . ' s'];
+        if (isset($tm['detail_seconds'])) {
+            $parts[] = 'Sepsis / emolliation pull: ' . $tm['detail_seconds'] . ' s for '
+                     . (int)$tm['detail_babies'] . ' babies (' . (int)$tm['detail_rows'] . ' rows)';
+        }
+        $parts[] = 'Total: ' . ($tm['total_seconds'] ?? '?') . ' s';
+        echo "<div class='wm-timing'>" . htmlspecialchars(implode('  ·  ', $parts)) . "</div>";
+    }
 ?>
 
 </div><!-- .report-container -->
 
 <?= $js ?>
 <script>
-function wmDownloadExcel() {
+// Re-request the same report (same dates / sites) in another server-side format.
+// format=csv  → WeeklyMeetingCsvExporter, format=excel → WeeklyMeetingExcelExporter
+function wmDownloadFormat(fmt) {
     var url = window.location.href;
-    // Replace or add format=excel
     if (url.indexOf('format=') !== -1) {
-        url = url.replace(/format=[^&]+/, 'format=excel');
+        url = url.replace(/format=[^&]+/, 'format=' + fmt);
     } else {
-        url += (url.indexOf('?') !== -1 ? '&' : '?') + 'format=excel';
+        url += (url.indexOf('?') !== -1 ? '&' : '?') + 'format=' + fmt;
     }
     window.location.href = url;
 }
+function wmDownloadExcel() { wmDownloadFormat('excel'); }
 </script>
 </body>
 </html>
@@ -366,6 +433,69 @@ function wmDownloadExcel() {
         }
 
         return $this->wrapSection('Discharge', 'dis_datetime / pd_datetime / fu28_datetime', $dateRange, $headerRow, $body, false);
+    }
+
+    /**
+     * Render a section from a self-describing meta array (Sepsis, Emolliation).
+     * meta: [metric => [label, role (primary|sub|sub2), section, pct_of]]
+     * % column = Total / Total of pct_of (same convention as the other sections).
+     */
+    private function renderMetaSection(
+        string $title,
+        string $dateField,
+        string $dateRange,
+        array  $data,
+        array  $meta,
+        array  $columns,
+        array  $siteLabels,
+        array  $notes = []
+    ): string
+    {
+        $colCount  = count($columns) + 2;
+        $headerRow = $this->buildHeaderRow($columns, $siteLabels, true);
+
+        $body        = '';
+        $lastSection = null;
+
+        foreach ($meta as $metric => $m)
+        {
+            // Hide the "other culture result" row when nobody has one
+            if (str_ends_with($metric, '_cult_other') && (int)($data[$metric]['Total'] ?? 0) === 0) continue;
+
+            $section = $m['section'] ?? '';
+            if ($section !== $lastSection) {
+                $lastSection = $section;
+                $body .= "<tr class='wm-section-hdr'><td colspan='{$colCount}'>"
+                       . htmlspecialchars($section) . "</td></tr>";
+            }
+
+            $role       = $m['role'] ?? 'sub';
+            $cls        = $role === 'primary' ? 'wm-primary' : '';
+            $labelClass = $role === 'sub2' ? 'wm-metric-label wm-metric-indented' : 'wm-metric-label';
+
+            $body .= "<tr class='{$cls}'><td class='{$labelClass}'>" . htmlspecialchars($m['label'] ?? $metric) . "</td>";
+            foreach ($columns as $col) {
+                $val  = $data[$metric][$col] ?? 0;
+                $tcls = $col === 'Total' ? 'wm-total-val' : '';
+                $body .= "<td class='{$tcls}'>{$val}</td>";
+            }
+
+            $pct = '';
+            if (!empty($m['pct_of'])) {
+                $den = (int)($data[$m['pct_of']]['Total'] ?? 0);
+                if ($den > 0) $pct = round(($data[$metric]['Total'] ?? 0) / $den * 100, 1) . '%';
+            }
+            $body .= "<td class='wm-pct-val'>{$pct}</td></tr>";
+        }
+
+        if (!$meta) {
+            $body .= "<tr><td class='wm-metric-label' colspan='{$colCount}'>No data for this period.</td></tr>";
+        }
+        if ($notes) {
+            $body .= "<tr class='wm-section-note'><td colspan='{$colCount}'>" . implode('<br>', $notes) . "</td></tr>";
+        }
+
+        return $this->wrapSection($title, $dateField, $dateRange, $headerRow, $body, true);
     }
 
     // =========================================================================

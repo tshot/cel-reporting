@@ -15,12 +15,23 @@ use CEL\Projects\Emollient\Aggregator\EligibilityWorkflow;
  * Section 1 — Pre-Screening      (date field: baby_datetime)
  * Section 2 — Screening          (date field: baby_datetime / enr_datetime)
  * Section 3 — Discharge          (date field: per metric — see below)
+ * Section 4 — Sepsis & Blood Workup (date field: nss_datetime)  → SepsisWorkupAggregator
+ * Section 5 — Emolliation Stopped   (date field: int_datetime)  → EmollientStoppedAggregator
  *
  * Also produces raw per-record arrays for the Excel download:
  *   rawPrescreening  — one row per pre-screened baby in period
  *   rawDischarge     — one row per discharged baby in period
  *   rawDay28Status   — one row per baby still in hospital / 28-day status
  *   rawFollowup29    — one row per baby with 29-day follow-up in period
+ *   rawSepsisPerBaby — one row per baby with confirmed / suspected sepsis in period
+ *   rawSepsisForms   — one row per sepsis-impression form in period
+ *   rawEmolPerBaby   — one row per baby with >= 1 emolliation instance stopped
+ *   rawEmolStopped   — one row per stopped emolliation instance
+ *
+ * Sections 4 and 5 rows (day events) carry none of the site fields used below,
+ * so they are collected BEFORE the site check and aggregated in a post-pass.
+ * Site = the form's own code (nss_hosp_code / int_hosp_code), falling back to
+ * the baby's enr_hosp_code.
  */
 class WeeklyMeetingAggregator extends AbstractAggregator
 {
@@ -34,11 +45,27 @@ class WeeklyMeetingAggregator extends AbstractAggregator
     // Each event's data stored separately so we don't mix day0 and discharge
     private array $rawByRecord = [];  // [record_id][event_key] => field values
 
+    // Sections 4 & 5 — rows collected in the main loop, aggregated in a post-pass
+    private array $sepsisRows = [];   // neonatal_sepsis_screening rows with CONF / SUSP
+    private array $emolRows   = [];   // daily_interventionemolliation_form rows with int_emoliate_baby
+    private array $enrSiteOf  = [];   // record_id => enr_hosp_code (site fallback)
+    private array $enrDateOf  = [];   // record_id => enr_datetime, consented babies only
+
+    // Days after enrolment in which day0..day28 forms can fall (28 days + slack)
+    private const DETAIL_WINDOW_DAYS = 35;
+
     public function __construct(
         string  $primaryKey,
         array   $siteFilter = [],
         ?string $dateFrom   = null,
-        ?string $dateTo     = null
+        ?string $dateTo     = null,
+        // true  → Suspected Sepsis = babies never confirmed in the period (rows add up)
+        // false → a baby with both impressions is counted in both rows
+        private bool $sepsisExclusive = true,
+        // fn(array $recordIds): iterable — second, small REDCap pull for Sections 4 & 5
+        // (day events, sepsis + emolliation fields, enrolled babies only).
+        // null → those rows are expected in the main stream instead.
+        private ?\Closure $detailFetcher = null
     ) {
         $this->primaryKey   = $primaryKey;
         $this->siteFilter   = array_map('trim', $siteFilter);
@@ -53,6 +80,9 @@ class WeeklyMeetingAggregator extends AbstractAggregator
 
     public function aggregate(iterable $records): array
     {
+        // $records is a lazy REDCap stream, so the main loop time ≈ main fetch time
+        $t0 = microtime(true);
+
         $prescreening = [];
         $screening    = [];
         $discharge    = [];
@@ -66,6 +96,26 @@ class WeeklyMeetingAggregator extends AbstractAggregator
 
             $event      = $row['redcap_event_name']        ?? '';
             $repeatForm = $row['redcap_repeat_instrument'] ?? '';
+
+            // ── Sections 4 & 5: collect before the site check ─────────────
+            // Day-event rows have no baby/enr/dis/pd/fu28 site field and would
+            // be skipped below. No `continue` here: a day0_arm_1 row can also
+            // carry enrolment data that the sections below still need.
+            if (SepsisWorkupAggregator::wants($row)) {
+                $this->sepsisRows[] = SepsisWorkupAggregator::slim($row);
+            }
+            if (EmollientStoppedAggregator::wants($row)) {
+                $this->emolRows[] = EmollientStoppedAggregator::slim($row);
+            }
+            $enrCode = trim($row['enr_hosp_code'] ?? '');
+            if ($enrCode !== '' && !isset($this->enrSiteOf[$id])) {
+                $this->enrSiteOf[$id] = $enrCode;
+            }
+            $enrConsent = trim($row['enr_consent_granted'] ?? '');
+            $enrDt      = trim($row['enr_datetime'] ?? '');
+            if ($enrDt !== '' && ($enrConsent === '1' || $enrConsent === 'Y')) {
+                $this->enrDateOf[$id] = $enrDt;
+            }
 
             // ── Resolve site ──────────────────────────────────────────────
             $site = '';
@@ -271,6 +321,11 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             }
         }
 
+        $tMain = microtime(true) - $t0;
+
+        // ── Sections 4 & 5: second, small pull for day-event rows ─────────
+        $fetchInfo = $this->runDetailFetch();
+
         // ── Post-pass: derived eligibility totals ─────────────────────────
         EligibilityWorkflow::applyDerivedTotals($prescreening);
 
@@ -471,15 +526,35 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             }
         }
 
+        // ── Sections 4 & 5: Sepsis & Blood Workup, Emolliation Stopped ────
+        $sepsisAgg = (new SepsisWorkupAggregator($this->from, $this->to, $this->siteFilter, $this->sepsisExclusive))
+            ->aggregate($this->sepsisRows, $this->enrSiteOf);
+        $emolAgg   = (new EmollientStoppedAggregator($this->from, $this->to, $this->siteFilter))
+            ->aggregate($this->emolRows, $this->enrSiteOf);
+        $this->sepsisRows = $this->emolRows = [];
+
         return [
             'prescreening'    => $prescreening,
             'screening'       => $screening,
             'discharge'       => $discharge,
+            'sepsis'          => $this->toMetricMajor($sepsisAgg['by_site']),
+            'sepsisMeta'      => $sepsisAgg['metrics'],
+            'sepsisNotes'     => $sepsisAgg['skipped'] + ['other_result_codes' => $sepsisAgg['other_result_codes'],
+                                                          'exclusive' => $this->sepsisExclusive],
+            'emollient'       => $this->toMetricMajor($emolAgg['by_site']),
+            'emollientMeta'   => $emolAgg['metrics'],
+            'emollientNotes'  => $emolAgg['skipped'],
+            'timing'          => ['main_seconds' => round($tMain, 1)] + $fetchInfo
+                                 + ['total_seconds' => round(microtime(true) - $t0, 1)],
             'metricMeta'      => EligibilityMetricDefinitions::metricMeta(),
             'rawPrescreening' => $rawPrescreening,
             'rawDischarge'    => $rawDischarge,
             'rawDay28Status'  => $rawDay28Status,
             'rawFollowup29'   => $rawFollowup29,
+            'rawSepsisPerBaby' => $sepsisAgg['per_baby'],
+            'rawSepsisForms'   => $sepsisAgg['forms'],
+            'rawEmolPerBaby'   => $emolAgg['per_baby'],
+            'rawEmolStopped'   => $emolAgg['instances'],
             'period'          => [
                 'date_from' => $this->from?->format('Y-m-d'),
                 'date_to'   => $this->to?->format('Y-m-d'),
@@ -490,6 +565,63 @@ class WeeklyMeetingAggregator extends AbstractAggregator
     // =========================================================================
     // Helpers
     // =========================================================================
+
+    /**
+     * Fetch sepsis / emolliation rows for the babies who can have forms in the period:
+     * consented, enrolled on or before date_to and no more than DETAIL_WINDOW_DAYS
+     * before date_from, and (with a site filter) enrolled at a selected site.
+     *
+     * A failure here does not break the report: sections 4 & 5 show the error instead.
+     */
+    private function runDetailFetch(): array
+    {
+        if ($this->detailFetcher === null) return [];
+
+        $earliest = $this->from ? (clone $this->from)->modify('-' . self::DETAIL_WINDOW_DAYS . ' days') : null;
+        $ids = [];
+        foreach ($this->enrDateOf as $id => $raw) {
+            try { $d = new \DateTime($raw); } catch (\Exception) { continue; }
+            if ($earliest && $d < $earliest) continue;
+            if ($this->to && $d > $this->to) continue;
+            if ($this->siteFilter && !in_array($this->enrSiteOf[$id] ?? '', $this->siteFilter, true)) continue;
+            $ids[] = (string)$id;
+        }
+
+        $t = microtime(true);
+        $rows = 0;
+        $error = null;
+        try {
+            foreach (($this->detailFetcher)($ids) as $row) {
+                $rows++;
+                if (SepsisWorkupAggregator::wants($row))     $this->sepsisRows[] = SepsisWorkupAggregator::slim($row);
+                if (EmollientStoppedAggregator::wants($row)) $this->emolRows[]   = EmollientStoppedAggregator::slim($row);
+            }
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+            error_log('[WeeklyMeetingAggregator] detail fetch failed: ' . $error);
+        }
+
+        return [
+            'detail_babies'  => count($ids),
+            'detail_rows'    => $rows,
+            'detail_seconds' => round(microtime(true) - $t, 1),
+            'detail_error'   => $error,
+        ];
+    }
+
+    /**
+     * Sub-aggregators return [site][metric] with a 'total' column;
+     * the report uses [metric][site] with a 'Total' column.
+     */
+    private function toMetricMajor(array $bySite): array
+    {
+        $out = [];
+        foreach ($bySite as $site => $metrics) {
+            $col = $site === 'total' ? 'Total' : $site;
+            foreach ($metrics as $metric => $n) $out[$metric][$col] = $n;
+        }
+        return $out;
+    }
 
     private function inc2(array &$data, string $site, string $metric): void
     {

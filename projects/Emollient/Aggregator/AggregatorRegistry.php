@@ -69,6 +69,31 @@ class AggregatorRegistry
     }
 
     /**
+     * Build a fn(array $recordIds): iterable that pulls a small, targeted set of
+     * rows from REDCap — used for detail sections that need many events but only
+     * for a few records (e.g. WeeklyMeeting sepsis / emolliation on day events).
+     *
+     * $def (from reports.php): ['fields' => [...], 'events' => [...], 'forms' => [...], 'chunk_size' => 100]
+     * Credentials come from this project's config.php (same as tools/diag_weekly.php).
+     */
+    private static function detailFetcher(?array $def): ?\Closure
+    {
+        if (empty($def['fields']) && empty($def['forms'])) return null;
+
+        return function (array $recordIds) use ($def): iterable {
+            $config = require __DIR__ . '/../config.php';
+            $client = new \CEL\Shared\Infrastructure\Redcap\RedcapApiClient($config['api_url'], $config['token']);
+            return $client->streamRecords(
+                $recordIds,
+                $def['fields']     ?? [],
+                $def['forms']      ?? [],
+                $def['events']     ?? [],
+                (int)($def['chunk_size'] ?? 100)
+            );
+        };
+    }
+
+    /**
      * Register all Emollient aggregator types.
      * Called once lazily on first make() call.
      */
@@ -198,12 +223,18 @@ class AggregatorRegistry
             )
         );
 
+        // sepsis_exclusive: default from reports.php, overridable per request
+        // with ?sepsis_exclusive=0 (or =1) — CSV / Excel buttons keep the URL.
         self::register('weekly_meeting', fn($pk, $cfg) =>
             new WeeklyMeetingAggregator(
                 $pk,
                 $cfg['site_filter'] ?? [],
                 $cfg['date_from']   ?? null,
-                $cfg['date_to']     ?? null
+                $cfg['date_to']     ?? null,
+                isset($_GET['sepsis_exclusive'])
+                    ? filter_var($_GET['sepsis_exclusive'], FILTER_VALIDATE_BOOLEAN)
+                    : (bool)($cfg['sepsis_exclusive'] ?? true),
+                self::detailFetcher($cfg['detail_fetch'] ?? null)
             )
         );
 

@@ -1160,6 +1160,11 @@ return [
     |   Discharge         : discharge_form_complete, dis_discharge_type
     |   Protocol Deviation: protocol_deviation_form_complete not blank
     |   29-day Follow-up  : fu28_day28_fup = 'DONE'
+    |   Sepsis & Workup   : nss_sepsis CONF / SUSP, CBC / CRP / culture (nss_datetime)
+    |   Emolliation Stop  : int_emoliate_baby = 'N' with reasons (int_datetime)
+    |
+    | Sepsis and emolliation rows (day events) come from a second, small pull
+    | ('detail_fetch') limited to babies who can have forms in the period.
     |
     | Access:
     |   ?project=Emollient&report=WeeklyMeeting&format=html
@@ -1174,6 +1179,11 @@ return [
         'exporter'         => 'weekly_meeting',
         'formats'          => ['html', 'download_html', 'csv', 'excel'],
         'site_labels_path' => __DIR__ . '/site_labels.php',
+        // Sepsis section: true = Suspected counts only babies never confirmed in the
+        // period; false = a baby with both impressions counts in both rows.
+        // Per request: &sepsis_exclusive=0 or &sepsis_exclusive=1
+        'sepsis_exclusive' => true,
+        // Main pull: sections 1-3 only (unchanged from before sections 4-5)
         'events'           => ['day0_arm_1', 'discharge_arm_1', 'other_forms_arm_1', 'day29_arm_1'],
         'fields'           => [
             'record_id',
@@ -1229,6 +1239,35 @@ return [
             'fu28_datetime',
             'fu28_day28_fup',
             'fu28_alive_day28',
+        ],
+
+        // Sections 4-5: a second, small pull run by WeeklyMeetingAggregator after
+        // the main one — day events, these fields only, and only for babies
+        // enrolled within 35 days before date_from up to date_to (site filter applied).
+        'detail_fetch' => [
+            'chunk_size' => 100,
+            'events'     => array_merge(['day0_arm_1'], DAILY_EVENTS),
+            'fields'     => [
+            'record_id',
+            // ── neonatal_sepsis_screening (Section 4) ──
+            'nss_hosp_code',
+            'nss_datetime',
+            'nss_sepsis',
+            'nss_tests',                  // checkbox set: nss_tests___sepsis_tests_cbc etc.
+            'nss_crp',
+            'nss_blood_culture',
+            'nss_blood_culture_result',
+
+            // ── daily_interventionemolliation_form (Section 5) ──
+            'int_hosp_code',
+            'int_datetime',
+            'int_emoliate_baby',
+            'int_no_emol_reason',          // master reason
+            'int_doctor_deny_reason_list', // doctor-deny detail
+            'int_doctor_deny_othr_reason', // doctor-deny free text (Excel only)
+            'int_sae_reasons',             // checkbox set: int_sae_reasons___*
+            'int_other_no_emoll_reason',   // other reason free text (Excel only)
+            ],
         ],
     ],
 

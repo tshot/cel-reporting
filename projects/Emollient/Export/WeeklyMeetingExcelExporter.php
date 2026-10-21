@@ -9,15 +9,20 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
  * WeeklyMeetingExcelExporter
  *
  * Generates a downloadable Excel file with raw form data for the report period.
- * Four tabs:
+ * Eight tabs:
  *
- *   1. Pre-Screening    — baby_prescreening_and_screening_form (baby_datetime)
- *   2. Discharge        — discharge_form (dis_datetime)
- *   3. 28-Day Status    — discharge_after_28_days_of_stay (no date filter)
- *   4. 29-Day Follow-up — day_28_follow_up_form (fu28_datetime)
+ *   1. Pre-Screening     — baby_prescreening_and_screening_form (baby_datetime)
+ *   2. Discharge         — discharge_form (dis_datetime)
+ *   3. 28-Day Status     — discharge_after_28_days_of_stay (no date filter)
+ *   4. 29-Day Follow-up  — day_28_follow_up_form (fu28_datetime)
+ *   5. Sepsis PerBaby    — one row per baby with confirmed / suspected sepsis (nss_datetime)
+ *   6. Sepsis Forms      — one row per sepsis-impression form, for checking (nss_datetime)
+ *   7. Emollient PerBaby — one row per baby with >= 1 stopped instance (int_datetime)
+ *   8. Emollient Stopped — one row per stopped emolliation instance (int_datetime)
  *
  * Reads from payload keys produced by WeeklyMeetingAggregator:
- *   rawPrescreening, rawDischarge, rawDay28Status, rawFollowup29
+ *   rawPrescreening, rawDischarge, rawDay28Status, rawFollowup29,
+ *   rawSepsisPerBaby, rawSepsisForms, rawEmolPerBaby, rawEmolStopped
  */
 class WeeklyMeetingExcelExporter implements ExporterInterface
 {
@@ -94,26 +99,10 @@ class WeeklyMeetingExcelExporter implements ExporterInterface
         $sp = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
         $sp->removeSheetByIndex(0);
 
-        $sheets = [
-            'Pre-Screening'    => $payload['rawPrescreening'] ?? [],
-            'Discharge'        => $payload['rawDischarge']    ?? [],
-            '28-Day Status'    => $payload['rawDay28Status']  ?? [],
-            '29-Day Follow-up' => $payload['rawFollowup29']   ?? [],
-        ];
-
-        $sheetMeta = [
-            'Pre-Screening'    => "baby_prescreening_and_screening_form  |  Date filter: baby_datetime {$dateFrom} to {$dateTo}",
-            'Discharge'        => "discharge_form  |  Date filter: dis_datetime {$dateFrom} to {$dateTo}",
-            '28-Day Status'    => "discharge_after_28_days_of_stay  |  As on report date: {$reportDate} (no date filter)",
-            '29-Day Follow-up' => "day_28_follow_up_form  |  Date filter: fu28_datetime {$dateFrom} to {$dateTo}",
-        ];
-
-        $colours = [
-            'Pre-Screening'    => '2E75B6',
-            'Discharge'        => '375623',
-            '28-Day Status'    => 'C55A11',
-            '29-Day Follow-up' => '7030A0',
-        ];
+        $defs      = $this->sheetDefs($payload, $dateFrom, $dateTo, $reportDate);
+        $sheets    = array_map(fn($d) => $d['rows'],   $defs);
+        $sheetMeta = array_map(fn($d) => $d['meta'],   $defs);
+        $colours   = array_map(fn($d) => $d['colour'], $defs);
 
         foreach ($sheets as $sheetName => $rows) {
             $ws = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($sp, $sheetName);
@@ -151,27 +140,31 @@ class WeeklyMeetingExcelExporter implements ExporterInterface
             }
             $ws->getRowDimension(2)->setRowHeight(18);
 
-            // Data rows
+            // Data rows — values cell by cell, styles applied per range
+            // (per-cell styling is very slow on the larger sepsis / emolliation sheets)
+            $lastCol = Coordinate::stringFromColumnIndex(count($headers));
             foreach ($rows as $i => $row) {
                 $excelRow = $i + 3;
                 $col = 1;
-                $bgColour = ($i % 2 === 0) ? 'FFFFFF' : 'F5F8FC';
                 foreach ($headers as $h) {
-                    $val = $row[$h] ?? '';
-                    $ws->setCellValue(Coordinate::stringFromColumnIndex($col) . $excelRow, $val);
-                    $ws->getStyle(Coordinate::stringFromColumnIndex($col) . $excelRow)->applyFromArray([
-                        'font'      => ['name' => 'Arial', 'size' => 9],
-                        'fill'      => ['fillType' => 'solid', 'startColor' => ['rgb' => $bgColour]],
-                        'alignment' => ['horizontal' => 'left', 'vertical' => 'center'],
-                        'borders'   => ['bottom' => ['borderStyle' => 'thin', 'color' => ['rgb' => 'E0E0E0']]],
-                    ]);
+                    $ws->setCellValue(Coordinate::stringFromColumnIndex($col) . $excelRow, $row[$h] ?? '');
                     $col++;
                 }
-                $ws->getRowDimension($excelRow)->setRowHeight(16);
+                if ($i % 2 === 1) {
+                    $ws->getStyle("A{$excelRow}:{$lastCol}{$excelRow}")->applyFromArray([
+                        'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => 'F5F8FC']],
+                    ]);
+                }
             }
+            $lastRow = count($rows) + 2;
+            $ws->getStyle("A3:{$lastCol}{$lastRow}")->applyFromArray([
+                'font'      => ['name' => 'Arial', 'size' => 9],
+                'alignment' => ['horizontal' => 'left', 'vertical' => 'center'],
+                'borders'   => ['bottom' => ['borderStyle' => 'thin', 'color' => ['rgb' => 'E0E0E0']]],
+            ]);
+            $ws->getDefaultRowDimension()->setRowHeight(16);
 
             $ws->freezePane('A3');
-            $lastCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
             $ws->setAutoFilter("A2:{$lastCol}2");
         }
 
@@ -179,6 +172,34 @@ class WeeklyMeetingExcelExporter implements ExporterInterface
         ob_start();
         $writer->save('php://output');
         return ob_get_clean();
+    }
+
+    // =========================================================================
+    // Sheet definitions — shared by both build paths
+    // =========================================================================
+
+    /** @return array<string, array{rows: array, meta: string, colour: string}> */
+    private function sheetDefs(array $payload, string $dateFrom, string $dateTo, string $reportDate): array
+    {
+        $p = "{$dateFrom} to {$dateTo}";
+        return [
+            'Pre-Screening'     => ['rows' => $payload['rawPrescreening']  ?? [], 'colour' => '2E75B6',
+                                    'meta' => "baby_prescreening_and_screening_form  |  Date filter: baby_datetime {$p}"],
+            'Discharge'         => ['rows' => $payload['rawDischarge']     ?? [], 'colour' => '375623',
+                                    'meta' => "discharge_form  |  Date filter: dis_datetime {$p}"],
+            '28-Day Status'     => ['rows' => $payload['rawDay28Status']   ?? [], 'colour' => 'C55A11',
+                                    'meta' => "discharge_after_28_days_of_stay  |  As on report date: {$reportDate} (no date filter)"],
+            '29-Day Follow-up'  => ['rows' => $payload['rawFollowup29']    ?? [], 'colour' => '7030A0',
+                                    'meta' => "day_28_follow_up_form  |  Date filter: fu28_datetime {$p}"],
+            'Sepsis PerBaby'    => ['rows' => $payload['rawSepsisPerBaby'] ?? [], 'colour' => 'A61C3C',
+                                    'meta' => "neonatal_sepsis_screening  |  One row per baby with confirmed / suspected sepsis  |  Date filter: nss_datetime {$p}"],
+            'Sepsis Forms'      => ['rows' => $payload['rawSepsisForms']   ?? [], 'colour' => 'A61C3C',
+                                    'meta' => "neonatal_sepsis_screening  |  One row per CONF / SUSP form (for checking)  |  Date filter: nss_datetime {$p}"],
+            'Emollient PerBaby' => ['rows' => $payload['rawEmolPerBaby']   ?? [], 'colour' => '0E7C7B',
+                                    'meta' => "daily_interventionemolliation_form  |  One row per baby with >= 1 instance not emolliated  |  Date filter: int_datetime {$p}"],
+            'Emollient Stopped' => ['rows' => $payload['rawEmolStopped']   ?? [], 'colour' => '0E7C7B',
+                                    'meta' => "daily_interventionemolliation_form  |  One row per instance with int_emoliate_baby = N  |  Date filter: int_datetime {$p}"],
+        ];
     }
 
     // =========================================================================
@@ -191,19 +212,9 @@ class WeeklyMeetingExcelExporter implements ExporterInterface
         string $dateTo,
         string $reportDate
     ): string {
-        $sheets = [
-            'Pre-Screening'    => $payload['rawPrescreening'] ?? [],
-            'Discharge'        => $payload['rawDischarge']    ?? [],
-            '28-Day Status'    => $payload['rawDay28Status']  ?? [],
-            '29-Day Follow-up' => $payload['rawFollowup29']   ?? [],
-        ];
-
-        $sheetMeta = [
-            'Pre-Screening'    => "baby_prescreening_and_screening_form | baby_datetime {$dateFrom} to {$dateTo}",
-            'Discharge'        => "discharge_form | dis_datetime {$dateFrom} to {$dateTo}",
-            '28-Day Status'    => "discharge_after_28_days_of_stay | as on {$reportDate}",
-            '29-Day Follow-up' => "day_28_follow_up_form | fu28_datetime {$dateFrom} to {$dateTo}",
-        ];
+        $defs      = $this->sheetDefs($payload, $dateFrom, $dateTo, $reportDate);
+        $sheets    = array_map(fn($d) => $d['rows'], $defs);
+        $sheetMeta = array_map(fn($d) => $d['meta'], $defs);
 
         $sheetXmls  = [];
         $sheetNames = array_keys($sheets);
