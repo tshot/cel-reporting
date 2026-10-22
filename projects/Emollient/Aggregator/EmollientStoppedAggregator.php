@@ -20,10 +20,18 @@ namespace CEL\Projects\Emollient\Aggregator;
  *              int_sae_reasons                (SAE detail, checkbox)
  *              Free text (Excel only): int_doctor_deny_othr_reason, int_other_no_emoll_reason
  *
- * Reported two ways:
+ * Reported three ways:
  *   baby-wise     — babies affected at all, and babies who lost a whole study day
- *                   (every recorded instance of that day = N)
  *   instance-wise — applications not given, by reason, with % of recorded
+ *   day-wise      — study days (baby × event) with >= 1 instance stopped, and
+ *                   study days fully stopped
+ *
+ * Fully stopped day (study day = redcap event):
+ *   day1..day28 : at least FULL_DAY_ENTRIES (3) entries recorded and all are N.
+ *                 A day with only 1-2 entries, all N, is NOT a full day (it may be
+ *                 incomplete entry or discharge that day) — listed in Excel instead.
+ *   day0        : all recorded entries are N (1-3 sessions are expected on Day 0,
+ *                 depending on the time of enrolment).
  *
  * Codes are shown as stored in REDCap (raw). Pass $dict [field => [code => label]]
  * to show labels instead.
@@ -43,6 +51,9 @@ final class EmollientStoppedAggregator
     public const SAE_FIELD    = 'int_sae_reasons';
     public const DOC_TEXT     = 'int_doctor_deny_othr_reason';
     public const OTHER_TEXT   = 'int_other_no_emoll_reason';
+
+    public const FULL_DAY_ENTRIES = 3;
+    public const DAY0_EVENT       = 'day0_arm_1';
 
     public const KEEP = [
         'record_id', 'redcap_event_name', 'redcap_repeat_instance',
@@ -154,11 +165,17 @@ final class EmollientStoppedAggregator
             $this->inc($bySite, $site, 'emo_babies_recorded');
             if (empty($b['stopped'])) continue;
 
-            $daysWithStop = 0; $fullDays = 0;
-            foreach ($b['days'] as $d) {
+            $daysWithStop = 0; $fullDays = 0; $incompleteAllN = 0;
+            foreach ($b['days'] as $dayKey => $d) {
                 if (empty($d['stop'])) continue;
                 $daysWithStop++;
-                if ($d['stop'] === $d['rec']) $fullDays++;
+                $this->inc($bySite, $site, 'emo_days_stopped');
+                if ($this->isFullDay((string)$dayKey, $d['rec'], $d['stop'])) {
+                    $fullDays++;
+                    $this->inc($bySite, $site, 'emo_days_full');
+                } elseif ($d['stop'] === $d['rec']) {
+                    $incompleteAllN++;   // all N, but fewer than 3 entries
+                }
             }
             $this->inc($bySite, $site, 'emo_babies_stopped');
             if ($fullDays > 0)     $this->inc($bySite, $site, 'emo_babies_fullday');
@@ -173,6 +190,7 @@ final class EmollientStoppedAggregator
                 'pct_stopped'        => round(100 * $b['stopped'] / $b['recorded'], 1),
                 'days_with_stop'     => $daysWithStop,
                 'full_days_stopped'  => $fullDays,
+                'days_all_n_lt3_entries' => $incompleteAllN,
                 'first_stop'         => min($b['dates'])->format('Y-m-d'),
                 'last_stop'          => max($b['dates'])->format('Y-m-d'),
                 'reasons'            => $this->countedLabels(self::MAIN_FIELD, $b['main'] ?? []),
@@ -206,6 +224,7 @@ final class EmollientStoppedAggregator
 
         $sb = 'Baby-wise';
         $si = 'Instance-wise (one instance = one emolliation entry, up to 3 per day)';
+        $sy = 'Day-wise (one study day = one baby on one study day, up to 3 entries)';
         $sm = 'Reason not emolliated (int_no_emol_reason)';
         $sd = 'Doctor denied — detail (int_doctor_deny_reason_list)';
         $ss = 'SAE — detail (int_sae_reasons)';
@@ -218,6 +237,8 @@ final class EmollientStoppedAggregator
             'emo_babies_sae'      => ['label' => 'Babies with an SAE reason',         'role' => 'sub',     'section' => $sb, 'pct_of' => 'emo_babies_stopped'],
             'emo_inst_recorded'   => ['label' => 'Emolliation instances recorded',    'role' => 'primary', 'section' => $si, 'pct_of' => null],
             'emo_inst_stopped'    => ['label' => 'Instances not emolliated (stopped)', 'role' => 'sub',    'section' => $si, 'pct_of' => 'emo_inst_recorded'],
+            'emo_days_stopped'    => ['label' => 'Study days with ≥1 instance stopped', 'role' => 'primary', 'section' => $sy, 'pct_of' => null],
+            'emo_days_full'       => ['label' => 'Study days fully stopped (all 3 entries N)', 'role' => 'sub', 'section' => $sy, 'pct_of' => 'emo_days_stopped'],
         ];
         foreach ($order(self::MAIN_FIELD, $mainCodes) as $c) {
             $m["emo_main:$c"] = ['label' => RedcapFieldReader::label($this->dict, self::MAIN_FIELD, $c), 'role' => 'sub', 'section' => $sm, 'pct_of' => 'emo_inst_stopped'];
@@ -230,6 +251,14 @@ final class EmollientStoppedAggregator
             $m["emo_sae:$c"] = ['label' => RedcapFieldReader::label($this->dict, self::SAE_FIELD, $c), 'role' => 'sub2', 'section' => $ss, 'pct_of' => 'emo_inst_stopped'];
         }
         return $m;
+    }
+
+    /** See class docblock: 3 entries all N on day1..day28; all recorded N on day0. */
+    private function isFullDay(string $dayKey, int $rec, int $stop): bool
+    {
+        if ($stop !== $rec) return false;
+        if ($dayKey === self::DAY0_EVENT) return true;
+        return $rec >= self::FULL_DAY_ENTRIES;
     }
 
     private function labels(string $field, array $codes): string

@@ -217,7 +217,9 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
         siteLabels: $siteLabels,
         notes:      array_filter([
             $errNote('emollient', 'Emolliation'),
-            'Stopped = int_emoliate_baby is N. Full day stopped = every recorded instance of a study day is N. '
+            'Stopped = int_emoliate_baby is N. Fully stopped day = all 3 entries of the study day are N '
+          . '(Day 0: all recorded entries, as 1–3 are expected). A day with only 1–2 entries, all N, is not counted as a full day; '
+          . 'such days are listed per baby in Excel (“Emollient PerBaby”, column days_all_n_lt3_entries). '
           . 'An instance can carry more than one reason, so reason rows can add up to more than the stopped count. '
           . 'Baby-wise detail: Excel sheets “Emollient PerBaby” and “Emollient Stopped”.',
             !empty($en['undated']) ? (int)$en['undated'] . ' emolliation instance(s) with no int_datetime were not counted.' : '',
