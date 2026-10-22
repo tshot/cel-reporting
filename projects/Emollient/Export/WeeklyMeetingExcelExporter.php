@@ -9,20 +9,21 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
  * WeeklyMeetingExcelExporter
  *
  * Generates a downloadable Excel file with raw form data for the report period.
- * Eight tabs:
+ * Nine tabs:
  *
  *   1. Pre-Screening     — baby_prescreening_and_screening_form (baby_datetime)
  *   2. Discharge         — discharge_form (dis_datetime)
  *   3. 28-Day Status     — discharge_after_28_days_of_stay (no date filter)
  *   4. 29-Day Follow-up  — day_28_follow_up_form (fu28_datetime)
  *   5. Sepsis PerBaby    — one row per baby with confirmed / suspected sepsis (nss_datetime)
- *   6. Sepsis Forms      — one row per sepsis-impression form, for checking (nss_datetime)
- *   7. Emollient PerBaby — one row per baby with >= 1 stopped instance (int_datetime)
- *   8. Emollient Stopped — one row per stopped emolliation instance (int_datetime)
+ *   6. Sepsis Forms      — every sepsis form in each counted baby's test window, for checking
+ *   7. Sepsis Pending    — culture results pending from earlier weeks, with age in days
+ *   8. Emollient PerBaby — one row per baby with >= 1 stopped instance (int_datetime)
+ *   9. Emollient Stopped — one row per stopped emolliation instance (int_datetime)
  *
  * Reads from payload keys produced by WeeklyMeetingAggregator:
  *   rawPrescreening, rawDischarge, rawDay28Status, rawFollowup29,
- *   rawSepsisPerBaby, rawSepsisForms, rawEmolPerBaby, rawEmolStopped
+ *   rawSepsisPerBaby, rawSepsisForms, rawSepsisPending, rawEmolPerBaby, rawEmolStopped
  */
 class WeeklyMeetingExcelExporter implements ExporterInterface
 {
@@ -194,7 +195,9 @@ class WeeklyMeetingExcelExporter implements ExporterInterface
             'Sepsis PerBaby'    => ['rows' => $payload['rawSepsisPerBaby'] ?? [], 'colour' => 'A61C3C',
                                     'meta' => "neonatal_sepsis_screening  |  One row per baby with confirmed / suspected sepsis  |  Date filter: nss_datetime {$p}"],
             'Sepsis Forms'      => ['rows' => $payload['rawSepsisForms']   ?? [], 'colour' => 'A61C3C',
-                                    'meta' => "neonatal_sepsis_screening  |  One row per CONF / SUSP form (for checking)  |  Date filter: nss_datetime {$p}"],
+                                    'meta' => "neonatal_sepsis_screening  |  Every form in each counted baby's test window (for checking)  |  Up to {$dateTo}"],
+            'Sepsis Pending'    => ['rows' => $payload['rawSepsisPending'] ?? [], 'colour' => 'A61C3C',
+                                    'meta' => "neonatal_sepsis_screening  |  One row per baby whose last culture before {$dateFrom} had no result by then  |  Status as of {$dateTo}"],
             'Emollient PerBaby' => ['rows' => $payload['rawEmolPerBaby']   ?? [], 'colour' => '0E7C7B',
                                     'meta' => "daily_interventionemolliation_form  |  One row per baby with >= 1 instance not emolliated  |  Date filter: int_datetime {$p}"],
             'Emollient Stopped' => ['rows' => $payload['rawEmolStopped']   ?? [], 'colour' => '0E7C7B',

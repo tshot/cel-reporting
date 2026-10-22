@@ -167,15 +167,16 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
         siteLabels: $siteLabels
     );
 
-    // ── Sections 4 & 5 come from a second pull — show its failure in both ───
-    $tm        = $payload['timing'] ?? [];
-    $fetchErr  = !empty($tm['detail_error'])
-        ? '<strong style="color:#c0392b">Sepsis / emolliation data could not be fetched from REDCap: '
-          . htmlspecialchars($tm['detail_error']) . ' — figures below are incomplete.</strong>'
+    // ── Sections 4 & 5 come from separate pulls — show a failure in its section ─
+    $tm      = $payload['timing'] ?? [];
+    $errNote = fn(string $part, string $what) => !empty($tm["{$part}_error"])
+        ? '<strong style="color:#c0392b">' . $what . ' data could not be fetched from REDCap: '
+          . htmlspecialchars($tm["{$part}_error"]) . ' — figures below are incomplete.</strong>'
         : '';
 
     // ── Section 4: Sepsis & Blood Workup ─────────────────────────────────────
     $sn = $payload['sepsisNotes'] ?? [];
+    $lb = (int)($sn['lookback_days'] ?? 2);
     echo $this->renderMetaSection(
         title:      'Sepsis & Blood Workup',
         dateField:  'nss_datetime',
@@ -185,15 +186,20 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
         columns:    $columns,
         siteLabels: $siteLabels,
         notes:      array_filter([
-            $fetchErr,
-            'Counts are babies. Tests are counted on the days carrying that impression; a baby counts once per test. '
-          . 'One culture result per baby (Positive &gt; Negative &gt; Awaited). % = of babies in the group; culture results = of babies with culture done. '
-          . 'Baby-wise detail: Excel sheets “Sepsis PerBaby” and “Sepsis Forms”.',
+            $errNote('sepsis', 'Sepsis'),
+            'Counts are babies. Tests (CBC, CRP, culture) are taken from any sepsis form from '
+          . "{$lb} day(s) before the baby&rsquo;s first Confirmed / Suspected form in the period up to the period end; a baby counts once per test. "
+          . 'Culture result = latest result entered up to the period end (Positive &gt; Negative &gt; Awaited). '
+          . '% = of babies in the group; culture results = of babies with culture done.',
             ($sn['exclusive'] ?? true)
                 ? 'Suspected excludes babies also confirmed in the period, so Confirmed + Suspected = distinct babies (add &amp;sepsis_exclusive=0 to the URL to count them in both).'
                 : 'A baby with both impressions in the period is counted in both Confirmed and Suspected (remove &amp;sepsis_exclusive=0 from the URL to count each baby once).',
-            !empty($sn['undated']) ? (int)$sn['undated'] . ' sepsis form(s) with no nss_datetime were not counted.' : '',
-            !empty($sn['no_site']) ? (int)$sn['no_site'] . ' sepsis form(s) with no site were not counted.' : '',
+            'Pending from earlier weeks: the baby&rsquo;s last culture before the period start had no result by then, however long ago. '
+          . '&ldquo;Received&rdquo; = result entered on a form dated in this period. A result typed into the original culture form cannot be dated, '
+          . 'so such a baby drops out of the pending list instead of showing as received.',
+            'Baby-wise detail: Excel sheets “Sepsis PerBaby”, “Sepsis Forms” and “Sepsis Pending” (with age in days).',
+            !empty($sn['undated']) ? (int)$sn['undated'] . ' Confirmed / Suspected form(s) with no nss_datetime were not counted.' : '',
+            !empty($sn['no_site']) ? (int)$sn['no_site'] . ' baby(ies) with no site were not counted.' : '',
             !empty($sn['other_result_codes'])
                 ? 'Other culture result codes: ' . htmlspecialchars(implode(', ', array_keys($sn['other_result_codes']))) . '.' : '',
         ])
@@ -210,7 +216,7 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
         columns:    $columns,
         siteLabels: $siteLabels,
         notes:      array_filter([
-            $fetchErr,
+            $errNote('emollient', 'Emolliation'),
             'Stopped = int_emoliate_baby is N. Full day stopped = every recorded instance of a study day is N. '
           . 'An instance can carry more than one reason, so reason rows can add up to more than the stopped count. '
           . 'Baby-wise detail: Excel sheets “Emollient PerBaby” and “Emollient Stopped”.',
@@ -222,9 +228,10 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
     // ── Timing footer (screen only) ──────────────────────────────────────────
     if ($tm) {
         $parts = ['Main REDCap pull + sections 1–3: ' . ($tm['main_seconds'] ?? '?') . ' s'];
-        if (isset($tm['detail_seconds'])) {
-            $parts[] = 'Sepsis / emolliation pull: ' . $tm['detail_seconds'] . ' s for '
-                     . (int)$tm['detail_babies'] . ' babies (' . (int)$tm['detail_rows'] . ' rows)';
+        foreach (['sepsis' => 'Sepsis pull', 'emollient' => 'Emolliation pull'] as $part => $lbl) {
+            if (!isset($tm["{$part}_seconds"])) continue;
+            $parts[] = "{$lbl}: " . $tm["{$part}_seconds"] . ' s for ' . (int)$tm["{$part}_babies"]
+                     . ' babies (' . (int)$tm["{$part}_rows"] . ' rows)';
         }
         $parts[] = 'Total: ' . ($tm['total_seconds'] ?? '?') . ' s';
         echo "<div class='wm-timing'>" . htmlspecialchars(implode('  ·  ', $parts)) . "</div>";

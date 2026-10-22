@@ -1183,6 +1183,12 @@ return [
         // period; false = a baby with both impressions counts in both rows.
         // Per request: &sepsis_exclusive=0 or &sepsis_exclusive=1
         'sepsis_exclusive' => true,
+        // Sepsis tests (CBC / CRP / culture) are counted from this many days before
+        // the baby's first Confirmed / Suspected form in the period, up to date_to.
+        'sepsis_lookback_days' => 2,
+        // "Culture results pending from earlier weeks": null = every pending result
+        // however old. A number (days) limits the sepsis pull if it gets slow.
+        'sepsis_pending_max_days' => null,
         // Main pull: sections 1-3 only (unchanged from before sections 4-5)
         'events'           => ['day0_arm_1', 'discharge_arm_1', 'other_forms_arm_1', 'day29_arm_1'],
         'fields'           => [
@@ -1241,32 +1247,41 @@ return [
             'fu28_alive_day28',
         ],
 
-        // Sections 4-5: a second, small pull run by WeeklyMeetingAggregator after
-        // the main one — day events, these fields only, and only for babies
-        // enrolled within 35 days before date_from up to date_to (site filter applied).
+        // Sections 4-5: extra pulls run by WeeklyMeetingAggregator after the main
+        // one — day events, only these fields, only consented babies (site filter
+        // applied on enr_hosp_code).
+        //   sepsis    : all babies enrolled up to date_to, so culture results still
+        //               pending from any earlier week are found
+        //   emollient : babies enrolled from 35 days before date_from to date_to
         'detail_fetch' => [
-            'chunk_size' => 100,
-            'events'     => array_merge(['day0_arm_1'], DAILY_EVENTS),
-            'fields'     => [
-            'record_id',
-            // ── neonatal_sepsis_screening (Section 4) ──
-            'nss_hosp_code',
-            'nss_datetime',
-            'nss_sepsis',
-            'nss_tests',                  // checkbox set: nss_tests___sepsis_tests_cbc etc.
-            'nss_crp',
-            'nss_blood_culture',
-            'nss_blood_culture_result',
-
-            // ── daily_interventionemolliation_form (Section 5) ──
-            'int_hosp_code',
-            'int_datetime',
-            'int_emoliate_baby',
-            'int_no_emol_reason',          // master reason
-            'int_doctor_deny_reason_list', // doctor-deny detail
-            'int_doctor_deny_othr_reason', // doctor-deny free text (Excel only)
-            'int_sae_reasons',             // checkbox set: int_sae_reasons___*
-            'int_other_no_emoll_reason',   // other reason free text (Excel only)
+            'sepsis' => [
+                'chunk_size' => 100,
+                'events'     => array_merge(['day0_arm_1'], DAILY_EVENTS),
+                'fields'     => [
+                    'record_id',
+                    'nss_hosp_code',
+                    'nss_datetime',
+                    'nss_sepsis',
+                    'nss_tests',                  // checkbox set: nss_tests___sepsis_tests_cbc etc.
+                    'nss_crp',
+                    'nss_blood_culture',
+                    'nss_blood_culture_result',
+                ],
+            ],
+            'emollient' => [
+                'chunk_size' => 100,
+                'events'     => array_merge(['day0_arm_1'], DAILY_EVENTS),
+                'fields'     => [
+                    'record_id',
+                    'int_hosp_code',
+                    'int_datetime',
+                    'int_emoliate_baby',
+                    'int_no_emol_reason',          // master reason
+                    'int_doctor_deny_reason_list', // doctor-deny detail
+                    'int_doctor_deny_othr_reason', // doctor-deny free text (Excel only)
+                    'int_sae_reasons',             // checkbox set: int_sae_reasons___*
+                    'int_other_no_emoll_reason',   // other reason free text (Excel only)
+                ],
             ],
         ],
     ],

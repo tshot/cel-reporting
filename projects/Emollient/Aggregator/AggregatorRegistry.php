@@ -69,26 +69,29 @@ class AggregatorRegistry
     }
 
     /**
-     * Build a fn(array $recordIds): iterable that pulls a small, targeted set of
-     * rows from REDCap — used for detail sections that need many events but only
-     * for a few records (e.g. WeeklyMeeting sepsis / emolliation on day events).
+     * Build a fn(string $part, array $recordIds): iterable that pulls a small,
+     * targeted set of rows from REDCap — for detail sections that need many events
+     * but only for a known set of records (WeeklyMeeting sepsis / emolliation).
      *
-     * $def (from reports.php): ['fields' => [...], 'events' => [...], 'forms' => [...], 'chunk_size' => 100]
+     * $def (from reports.php): [part => ['fields' => [...], 'events' => [...],
+     *                                    'forms' => [...], 'chunk_size' => 100], ...]
      * Credentials come from this project's config.php (same as tools/diag_weekly.php).
      */
     private static function detailFetcher(?array $def): ?\Closure
     {
-        if (empty($def['fields']) && empty($def['forms'])) return null;
+        if (empty($def)) return null;
 
-        return function (array $recordIds) use ($def): iterable {
+        return function (string $part, array $recordIds) use ($def): iterable {
+            $p = $def[$part] ?? null;
+            if (!$p || !$recordIds) return [];
             $config = require __DIR__ . '/../config.php';
             $client = new \CEL\Shared\Infrastructure\Redcap\RedcapApiClient($config['api_url'], $config['token']);
             return $client->streamRecords(
                 $recordIds,
-                $def['fields']     ?? [],
-                $def['forms']      ?? [],
-                $def['events']     ?? [],
-                (int)($def['chunk_size'] ?? 100)
+                $p['fields']     ?? [],
+                $p['forms']      ?? [],
+                $p['events']     ?? [],
+                (int)($p['chunk_size'] ?? 100)
             );
         };
     }
@@ -234,7 +237,11 @@ class AggregatorRegistry
                 isset($_GET['sepsis_exclusive'])
                     ? filter_var($_GET['sepsis_exclusive'], FILTER_VALIDATE_BOOLEAN)
                     : (bool)($cfg['sepsis_exclusive'] ?? true),
-                self::detailFetcher($cfg['detail_fetch'] ?? null)
+                self::detailFetcher($cfg['detail_fetch'] ?? null),
+                [
+                    'lookback_days'    => (int)($cfg['sepsis_lookback_days'] ?? 2),
+                    'pending_max_days' => $cfg['sepsis_pending_max_days'] ?? null,
+                ]
             )
         );
 

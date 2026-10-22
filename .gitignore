@@ -17,3 +17,6 @@ projects/iKMC/sync_config.php
 *.orig*
 *.rej*
 tools/output/
+__pycache__/
+__pycache__/
+.~lock.*

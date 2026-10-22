@@ -24,7 +24,8 @@ use CEL\Projects\Emollient\Aggregator\EligibilityWorkflow;
  *   rawDay28Status   — one row per baby still in hospital / 28-day status
  *   rawFollowup29    — one row per baby with 29-day follow-up in period
  *   rawSepsisPerBaby — one row per baby with confirmed / suspected sepsis in period
- *   rawSepsisForms   — one row per sepsis-impression form in period
+ *   rawSepsisForms   — every sepsis form in each counted baby's test window
+ *   rawSepsisPending — one row per baby with a culture result pending at period start
  *   rawEmolPerBaby   — one row per baby with >= 1 emolliation instance stopped
  *   rawEmolStopped   — one row per stopped emolliation instance
  *
@@ -46,7 +47,7 @@ class WeeklyMeetingAggregator extends AbstractAggregator
     private array $rawByRecord = [];  // [record_id][event_key] => field values
 
     // Sections 4 & 5 — rows collected in the main loop, aggregated in a post-pass
-    private array $sepsisRows = [];   // neonatal_sepsis_screening rows with CONF / SUSP
+    private array $sepsisRows = [];   // neonatal_sepsis_screening rows (any impression)
     private array $emolRows   = [];   // daily_interventionemolliation_form rows with int_emoliate_baby
     private array $enrSiteOf  = [];   // record_id => enr_hosp_code (site fallback)
     private array $enrDateOf  = [];   // record_id => enr_datetime, consented babies only
@@ -62,10 +63,15 @@ class WeeklyMeetingAggregator extends AbstractAggregator
         // true  → Suspected Sepsis = babies never confirmed in the period (rows add up)
         // false → a baby with both impressions is counted in both rows
         private bool $sepsisExclusive = true,
-        // fn(array $recordIds): iterable — second, small REDCap pull for Sections 4 & 5
-        // (day events, sepsis + emolliation fields, enrolled babies only).
+        // fn(string $part, array $recordIds): iterable — extra REDCap pulls for
+        // Sections 4 & 5; $part is 'sepsis' or 'emollient' (see reports.php detail_fetch).
         // null → those rows are expected in the main stream instead.
-        private ?\Closure $detailFetcher = null
+        private ?\Closure $detailFetcher = null,
+        // lookback_days    : tests counted from N days before the first impression
+        // pending_max_days : null = every pending culture result however old;
+        //                    a number limits the sepsis pull to babies enrolled that
+        //                    many days (+35) before date_from
+        private array $sepsisOptions = []
     ) {
         $this->primaryKey   = $primaryKey;
         $this->siteFilter   = array_map('trim', $siteFilter);
@@ -527,7 +533,10 @@ class WeeklyMeetingAggregator extends AbstractAggregator
         }
 
         // ── Sections 4 & 5: Sepsis & Blood Workup, Emolliation Stopped ────
-        $sepsisAgg = (new SepsisWorkupAggregator($this->from, $this->to, $this->siteFilter, $this->sepsisExclusive))
+        $sepsisAgg = (new SepsisWorkupAggregator(
+                $this->from, $this->to, $this->siteFilter, $this->sepsisExclusive, [],
+                (int)($this->sepsisOptions['lookback_days'] ?? 2)
+            ))
             ->aggregate($this->sepsisRows, $this->enrSiteOf);
         $emolAgg   = (new EmollientStoppedAggregator($this->from, $this->to, $this->siteFilter))
             ->aggregate($this->emolRows, $this->enrSiteOf);
@@ -540,7 +549,8 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             'sepsis'          => $this->toMetricMajor($sepsisAgg['by_site']),
             'sepsisMeta'      => $sepsisAgg['metrics'],
             'sepsisNotes'     => $sepsisAgg['skipped'] + ['other_result_codes' => $sepsisAgg['other_result_codes'],
-                                                          'exclusive' => $this->sepsisExclusive],
+                                                          'exclusive' => $this->sepsisExclusive,
+                                                          'lookback_days' => (int)($this->sepsisOptions['lookback_days'] ?? 2)],
             'emollient'       => $this->toMetricMajor($emolAgg['by_site']),
             'emollientMeta'   => $emolAgg['metrics'],
             'emollientNotes'  => $emolAgg['skipped'],
@@ -553,6 +563,7 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             'rawFollowup29'   => $rawFollowup29,
             'rawSepsisPerBaby' => $sepsisAgg['per_baby'],
             'rawSepsisForms'   => $sepsisAgg['forms'],
+            'rawSepsisPending' => $sepsisAgg['pending'],
             'rawEmolPerBaby'   => $emolAgg['per_baby'],
             'rawEmolStopped'   => $emolAgg['instances'],
             'period'          => [
@@ -567,46 +578,62 @@ class WeeklyMeetingAggregator extends AbstractAggregator
     // =========================================================================
 
     /**
-     * Fetch sepsis / emolliation rows for the babies who can have forms in the period:
-     * consented, enrolled on or before date_to and no more than DETAIL_WINDOW_DAYS
-     * before date_from, and (with a site filter) enrolled at a selected site.
+     * Two targeted REDCap pulls after the main one:
      *
-     * A failure here does not break the report: sections 4 & 5 show the error instead.
+     *   sepsis    — consented babies enrolled up to date_to (all of them, so culture
+     *               results pending from any earlier week are found; optionally capped
+     *               by pending_max_days)
+     *   emollient — consented babies enrolled from DETAIL_WINDOW_DAYS before date_from
+     *               up to date_to (the only ones whose day0..day28 forms can fall in
+     *               the period)
+     *
+     * Site filter is applied on enr_hosp_code. A failed pull does not break the report:
+     * its section shows the error instead.
      */
     private function runDetailFetch(): array
     {
         if ($this->detailFetcher === null) return [];
 
-        $earliest = $this->from ? (clone $this->from)->modify('-' . self::DETAIL_WINDOW_DAYS . ' days') : null;
-        $ids = [];
+        $windowStart = $this->from ? (clone $this->from)->modify('-' . self::DETAIL_WINDOW_DAYS . ' days') : null;
+        $maxDays     = $this->sepsisOptions['pending_max_days'] ?? null;
+        $sepsisStart = ($this->from && $maxDays !== null)
+            ? (clone $this->from)->modify('-' . ((int)$maxDays + self::DETAIL_WINDOW_DAYS) . ' days')
+            : null;
+
+        $ids = ['sepsis' => [], 'emollient' => []];
         foreach ($this->enrDateOf as $id => $raw) {
             try { $d = new \DateTime($raw); } catch (\Exception) { continue; }
-            if ($earliest && $d < $earliest) continue;
             if ($this->to && $d > $this->to) continue;
             if ($this->siteFilter && !in_array($this->enrSiteOf[$id] ?? '', $this->siteFilter, true)) continue;
-            $ids[] = (string)$id;
+            if (!$sepsisStart || $d >= $sepsisStart) $ids['sepsis'][]    = (string)$id;
+            if (!$windowStart || $d >= $windowStart) $ids['emollient'][] = (string)$id;
         }
 
-        $t = microtime(true);
-        $rows = 0;
-        $error = null;
-        try {
-            foreach (($this->detailFetcher)($ids) as $row) {
-                $rows++;
-                if (SepsisWorkupAggregator::wants($row))     $this->sepsisRows[] = SepsisWorkupAggregator::slim($row);
-                if (EmollientStoppedAggregator::wants($row)) $this->emolRows[]   = EmollientStoppedAggregator::slim($row);
+        $info = [];
+        foreach ($ids as $part => $list) {
+            $t = microtime(true);
+            $rows = 0;
+            $error = null;
+            try {
+                foreach (($this->detailFetcher)($part, $list) as $row) {
+                    $rows++;
+                    if ($part === 'sepsis' && SepsisWorkupAggregator::wants($row)) {
+                        $this->sepsisRows[] = SepsisWorkupAggregator::slim($row);
+                    }
+                    if ($part === 'emollient' && EmollientStoppedAggregator::wants($row)) {
+                        $this->emolRows[] = EmollientStoppedAggregator::slim($row);
+                    }
+                }
+            } catch (\Throwable $e) {
+                $error = $e->getMessage();
+                error_log("[WeeklyMeetingAggregator] {$part} fetch failed: " . $error);
             }
-        } catch (\Throwable $e) {
-            $error = $e->getMessage();
-            error_log('[WeeklyMeetingAggregator] detail fetch failed: ' . $error);
+            $info["{$part}_babies"]  = count($list);
+            $info["{$part}_rows"]    = $rows;
+            $info["{$part}_seconds"] = round(microtime(true) - $t, 1);
+            $info["{$part}_error"]   = $error;
         }
-
-        return [
-            'detail_babies'  => count($ids),
-            'detail_rows'    => $rows,
-            'detail_seconds' => round(microtime(true) - $t, 1),
-            'detail_error'   => $error,
-        ];
+        return $info;
     }
 
     /**
