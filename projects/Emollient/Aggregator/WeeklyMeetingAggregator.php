@@ -55,6 +55,9 @@ class WeeklyMeetingAggregator extends AbstractAggregator
     // Days after enrolment in which day0..day28 forms can fall (28 days + slack)
     private const DETAIL_WINDOW_DAYS = 35;
 
+    // "More than 40 days — still in Hospital" (subset of 28 days completed)
+    private const LONG_STAY_DAYS = 40;
+
     public function __construct(
         string  $primaryKey,
         array   $siteFilter = [],
@@ -192,6 +195,7 @@ class WeeklyMeetingAggregator extends AbstractAggregator
                         'site'     => $enrSite,
                         'arm'      => $arm,
                         'date'     => $enrDateRaw,
+                        'dob'      => trim($row['enr_baby_dob'] ?? ''),
                         'in_range' => $this->dateOk($enrDateRaw),
                     ];
                 }
@@ -235,6 +239,7 @@ class WeeklyMeetingAggregator extends AbstractAggregator
                     'in_hosp'   => $inHosp,
                     'age_dis'   => $disAge,
                     'in_range'  => $disDate !== '' && $this->dateOk($disDate),
+                    'post28_open' => false,
                 ];
 
                 if ($disDate !== '' && $this->dateOk($disDate)) {
@@ -252,6 +257,9 @@ class WeeklyMeetingAggregator extends AbstractAggregator
                     && trim($row['discharge_after_28_days_of_stay_complete'] ?? '0') !== '2')
                 {
                     $this->inc2($discharge, $disSite, 'dis_28_days');
+                    // Subset > 40 days of age: needs the DOB from day0, so it is
+                    // counted in the post-pass below
+                    $this->rawByRecord[$id]['discharge']['post28_open'] = true;
                 }
             }
 
@@ -445,6 +453,20 @@ class WeeklyMeetingAggregator extends AbstractAggregator
         // here we don't override; that logic is correct as-is. Keeping comment
         // for clarity.
 
+        // ── Post-pass: dis_40_days (subset of dis_28_days) ────────────────
+        // Babies counted in "28 days completed — still in Hospital" whose age
+        // (enr_baby_dob to date_to, or today without date_to) is MORE than
+        // 40 days. Babies with no DOB cannot be placed and are not counted.
+        $ageRef = $this->to ? (clone $this->to)->setTime(0, 0, 0) : new \DateTime('today');
+        foreach ($this->rawByRecord as $id => $events) {
+            if (empty($events['discharge']['post28_open'])) continue;
+            $age = $this->ageDays($events['enrollment']['dob'] ?? '', $ageRef);
+            $this->rawByRecord[$id]['discharge']['age_days'] = $age;
+            if ($age !== null && $age > self::LONG_STAY_DAYS) {
+                $this->inc2($discharge, $events['discharge']['site'], 'dis_40_days');
+            }
+        }
+
         // ── Build raw arrays for Excel exporter ───────────────────────────
         // Each raw array uses the 'in_range' flag set during the main loop.
         // This way raw data respects the same date filter as the summary counts.
@@ -513,6 +535,12 @@ class WeeklyMeetingAggregator extends AbstractAggregator
                     'in_hosp'    => $d['in_hosp'],
                     'status'     => $status,
                     'age_at_dis' => $d['age_dis'],
+                    'dob'        => $enr['dob'] ?? '',
+                    // only for "28 days completed — still in Hospital" babies
+                    'age_days_at_period_end' => $d['post28_open'] ? ($d['age_days'] ?? '') : '',
+                    'over_40_days'           => $d['post28_open']
+                        ? (($d['age_days'] ?? null) === null ? 'no DOB' : (($d['age_days'] > self::LONG_STAY_DAYS) ? 'Y' : 'N'))
+                        : '',
                 ];
             }
 
@@ -648,6 +676,15 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             foreach ($metrics as $metric => $n) $out[$metric][$col] = $n;
         }
         return $out;
+    }
+
+    /** Whole days from a DOB to $ref (both at midnight); null when the DOB is blank or invalid. */
+    private function ageDays(string $dob, \DateTime $ref): ?int
+    {
+        if (trim($dob) === '') return null;
+        try { $d = (new \DateTime($dob))->setTime(0, 0, 0); } catch (\Exception) { return null; }
+        if ($d > $ref) return null;
+        return (int)$d->diff($ref)->days;
     }
 
     private function inc2(array &$data, string $site, string $metric): void

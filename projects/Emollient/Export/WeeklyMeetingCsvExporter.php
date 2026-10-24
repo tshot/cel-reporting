@@ -247,6 +247,7 @@ class WeeklyMeetingCsvExporter implements ExporterInterface
             'dis_still_in_hospital_intervention' => ['label' => '  Intervention',                        'section' => 'Milestones',       'date_field' => ''],
             'dis_still_in_hospital_control'      => ['label' => '  Control',                             'section' => 'Milestones',       'date_field' => ''],
             'dis_28_days'                        => ['label' => '28 days completed — still in Hospital', 'section' => 'Milestones',       'date_field' => '(no date filter)'],
+            'dis_40_days'                        => ['label' => '  of which more than 40 days of age',   'section' => 'Milestones',       'date_field' => ''],
             'dis_fu29_done'                      => ['label' => 'Total 29-day Follow-up Completed',      'section' => '29-Day Follow-up', 'date_field' => 'fu28_datetime'],
         ];
     }

@@ -1227,6 +1227,7 @@ return [
             'enr_datetime',
             'enr_consent_granted',
             'enr_study_arm',
+            'enr_baby_dob',          // age for "more than 40 days — still in Hospital"
 
             // ── discharge_arm_1 ──
             'dis_datetime',
