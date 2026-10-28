@@ -1265,6 +1265,7 @@ return [
                     'nss_sepsis',
                     'nss_tests',                  // checkbox set: nss_tests___sepsis_tests_cbc etc.
                     'nss_crp',
+                    'nss_tlc',                    // TLC done (suspected cases)
                     'nss_blood_culture',
                     'nss_blood_culture_result',
                 ],

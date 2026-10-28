@@ -25,7 +25,7 @@ use CEL\Projects\Emollient\Aggregator\EligibilityWorkflow;
  *   rawFollowup29    — one row per baby with 29-day follow-up in period
  *   rawSepsisPerBaby — one row per baby with confirmed / suspected sepsis in period
  *   rawSepsisForms   — every sepsis form in each counted baby's test window
- *   rawSepsisPending — one row per baby with a culture result pending at period start
+ *   rawSepsisBacklog — one row per earlier case per missing item (culture, result, CRP, TLC)
  *   rawEmolPerBaby   — one row per baby with >= 1 emolliation instance stopped
  *   rawEmolStopped   — one row per stopped emolliation instance
  *
@@ -591,7 +591,7 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             'rawFollowup29'   => $rawFollowup29,
             'rawSepsisPerBaby' => $sepsisAgg['per_baby'],
             'rawSepsisForms'   => $sepsisAgg['forms'],
-            'rawSepsisPending' => $sepsisAgg['pending'],
+            'rawSepsisBacklog' => $sepsisAgg['backlog'],
             'rawEmolPerBaby'   => $emolAgg['per_baby'],
             'rawEmolStopped'   => $emolAgg['instances'],
             'period'          => [

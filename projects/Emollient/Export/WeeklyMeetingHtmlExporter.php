@@ -187,17 +187,17 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
         siteLabels: $siteLabels,
         notes:      array_filter([
             $errNote('sepsis', 'Sepsis'),
-            'Counts are babies. Tests (CBC, CRP, culture) are taken from any sepsis form from '
-          . "{$lb} day(s) before the baby&rsquo;s first Confirmed / Suspected form in the period up to the period end; a baby counts once per test. "
-          . 'Culture result = latest result entered up to the period end (Positive &gt; Negative &gt; Awaited). '
-          . '% = of babies in the group; culture results = of babies with culture done.',
+            'Counts are babies. A test is done when ticked (CBC, CRP) or culture = Y; its result is the number (TLC, CRP) or Positive / Negative. NI, blank and 9999999999 count as result missing. '
+          . 'Tests are taken from any sepsis form from '
+          . "{$lb} day(s) before the baby&rsquo;s first Confirmed / Suspected form up to the period end; a baby counts once per test. "
+          . 'Results count up to the period end. % = of babies in the group; result rows = of babies with that test done.',
             ($sn['exclusive'] ?? true)
                 ? 'Suspected excludes babies also confirmed in the period, so Confirmed + Suspected = distinct babies (add &amp;sepsis_exclusive=0 to the URL to count them in both).'
                 : 'A baby with both impressions in the period is counted in both Confirmed and Suspected (remove &amp;sepsis_exclusive=0 from the URL to count each baby once).',
-            'Pending from earlier weeks: the baby&rsquo;s last culture before the period start had no result by then, however long ago. '
-          . '&ldquo;Received&rdquo; = result entered on a form dated in this period. A result typed into the original culture form cannot be dated, '
-          . 'so such a baby drops out of the pending list instead of showing as received.',
-            'Baby-wise detail: Excel sheets “Sepsis PerBaby”, “Sepsis Forms” and “Sepsis Pending” (with age in days).',
+            'Earlier cases: impression on a form before the period start, however long ago. Confirmed earlier = blood culture, then its result, still missing. '
+          . 'Suspected earlier (never confirmed) = CBC or CRP not done, or its TLC / CRP result still missing. &ldquo;Recorded / received this period&rdquo; = entered on a form dated in this period; '
+          . 'a value typed into an old form cannot be dated, so such a baby drops out of the list instead.',
+            'Baby-wise detail: Excel sheets &ldquo;Sepsis PerBaby&rdquo;, &ldquo;Sepsis Forms&rdquo; and &ldquo;Sepsis Backlog&rdquo; (days since impression, oldest first).',
             !empty($sn['undated']) ? (int)$sn['undated'] . ' Confirmed / Suspected form(s) with no nss_datetime were not counted.' : '',
             !empty($sn['no_site']) ? (int)$sn['no_site'] . ' baby(ies) with no site were not counted.' : '',
             !empty($sn['other_result_codes'])
