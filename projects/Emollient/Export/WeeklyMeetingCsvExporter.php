@@ -205,7 +205,7 @@ class WeeklyMeetingCsvExporter implements ExporterInterface
 
         // ── Sections 6 & 7: baseline_arm_1 checks ─────────────────────────────
         $out .= $this->csv([]);
-        $out .= $this->csv(['=== ANTENATAL CORTICOSTEROIDS (date field: mat_datetime) ===']);
+        $out .= $this->csv(['=== ANTENATAL CORTICOSTEROIDS (date field: mat_start_time) ===']);
         $out .= $this->metaRows($payload['antenatal'] ?? [], $payload['antenatalMeta'] ?? [], $columns);
         $out .= $this->csv([]);
         $out .= $this->csv(['=== GESTATIONAL AGE SOURCES (date field: base_datetime) ===']);

@@ -1292,7 +1292,7 @@ return [
                 'events'     => ['baseline_arm_1'],
                 'fields'     => [
                     'record_id',
-                    'mat_datetime',               // Maternal History date (section 6 filter)
+                    'mat_start_time',               // Maternal History date (section 6 filter)
                     'mat_antenatal_steriod',      // antenatal corticosteroids: Y = marked
                     'base_datetime',              // Baseline General Information date (section 7 filter)
                     'base_ga_source_avail',       // checkbox: ___lmp, ___usg, ___ballard, ___none

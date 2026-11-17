@@ -232,7 +232,7 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
     $bn = $payload['baselineNotes'] ?? [];
     echo $this->renderMetaSection(
         title:      'Antenatal Corticosteroids',
-        dateField:  'mat_datetime',
+        dateField:  'mat_start_time',
         dateRange:  $dateRange,
         data:       $payload['antenatal'] ?? [],
         meta:       $payload['antenatalMeta'] ?? [],
@@ -242,7 +242,7 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
             $errNote('baseline', 'Baseline'),
             'Was the mother given antenatal corticosteroids before delivery? (mat_antenatal_steriod). Marked = Y; any other value or blank = not marked. '
           . 'Babies whose Maternal History form is dated in this period; both arms. List: Excel sheet &ldquo;Antenatal Steroid&rdquo;.',
-            !empty($bn['ans_undated']) ? (int)$bn['ans_undated'] . ' Maternal History form(s) with no mat_datetime were not counted.' : '',
+            !empty($bn['ans_undated']) ? (int)$bn['ans_undated'] . ' Maternal History form(s) with no mat_start_time were not counted.' : '',
         ])
     );
     echo $this->renderMetaSection(

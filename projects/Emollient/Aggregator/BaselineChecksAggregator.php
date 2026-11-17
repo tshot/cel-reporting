@@ -10,7 +10,7 @@ namespace CEL\Projects\Emollient\Aggregator;
  * Site = the baby's enr_hosp_code (the baseline forms carry no site field).
  *
  * ── Section 6: Antenatal Corticosteroids (maternal_history_module) ───────────
- *   In scope   : mat_datetime falls in the period
+ *   In scope   : mat_start_time falls in the period
  *   Marked     : mat_antenatal_steriod = 'Y'
  *   Not marked : any other value, or blank
  *
@@ -34,7 +34,7 @@ final class BaselineChecksAggregator
 
     public const KEEP = [
         'record_id', 'redcap_event_name',
-        'mat_datetime', 'mat_antenatal_steriod',
+        'mat_start_time', 'mat_antenatal_steriod',
         'base_datetime', 'base_usg_trimester',
     ];
 
@@ -47,7 +47,7 @@ final class BaselineChecksAggregator
     public static function wants(array $row): bool
     {
         return ($row['redcap_event_name'] ?? self::EVENT) === self::EVENT
-            && (trim((string)($row['mat_datetime'] ?? '')) !== ''
+            && (trim((string)($row['mat_start_time'] ?? '')) !== ''
              || trim((string)($row['base_datetime'] ?? '')) !== ''
              || trim((string)($row['mat_antenatal_steriod'] ?? '')) !== ''
              || trim((string)($row['base_usg_trimester'] ?? '')) !== ''
@@ -65,7 +65,7 @@ final class BaselineChecksAggregator
 
     public static function antenatalMeta(): array
     {
-        $s = 'Maternal History forms this period (mat_datetime)';
+        $s = 'Maternal History forms this period (mat_start_time)';
         return [
             'ans_forms'      => ['label' => 'Babies with Maternal History filled this period', 'role' => 'primary', 'section' => $s, 'pct_of' => null],
             'ans_marked'     => ['label' => 'Antenatal steroid marked (Y)',                    'role' => 'sub',     'section' => $s, 'pct_of' => 'ans_forms'],
@@ -103,7 +103,7 @@ final class BaselineChecksAggregator
             $site = (string)($siteOfRecord[$rid] ?? '');
 
             // ── Section 6: antenatal steroid ─────────────────────────────────
-            $matDt = RedcapFieldReader::date($r['mat_datetime'] ?? '');
+            $matDt = RedcapFieldReader::date($r['mat_start_time'] ?? '');
             if ($matDt === null) {
                 if (trim((string)($r['mat_antenatal_steriod'] ?? '')) !== '') $skipped['ans_undated']++;
             } elseif (RedcapFieldReader::inPeriod($matDt, $this->from, $this->to)) {
@@ -116,7 +116,7 @@ final class BaselineChecksAggregator
                     $ansRows[] = [
                         'record_id'             => $rid,
                         'site'                  => $site,
-                        'mat_datetime'          => $matDt->format('Y-m-d H:i'),
+                        'mat_start_time'          => $matDt->format('Y-m-d H:i'),
                         'mat_antenatal_steriod' => $val,
                         'status'                => $marked ? 'Marked' : 'Not marked',
                     ];

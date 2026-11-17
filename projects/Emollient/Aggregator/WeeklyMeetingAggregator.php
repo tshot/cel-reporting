@@ -17,7 +17,7 @@ use CEL\Projects\Emollient\Aggregator\EligibilityWorkflow;
  * Section 3 — Discharge          (date field: per metric — see below)
  * Section 4 — Sepsis & Blood Workup (date field: nss_datetime)  → SepsisWorkupAggregator
  * Section 5 — Emolliation Stopped   (date field: int_datetime)  → EmollientStoppedAggregator
- * Section 6 — Antenatal Corticosteroids (date field: mat_datetime)  → BaselineChecksAggregator
+ * Section 6 — Antenatal Corticosteroids (date field: mat_start_time)  → BaselineChecksAggregator
  * Section 7 — Gestational Age Sources   (date field: base_datetime) → BaselineChecksAggregator
  *
  * Also produces raw per-record arrays for the Excel download:

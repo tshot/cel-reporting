@@ -20,7 +20,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
  *   7. Sepsis Backlog    — earlier cases still missing culture / result (confirmed) or CRP / TLC (suspected)
  *   8. Emollient PerBaby — one row per baby with >= 1 stopped instance (int_datetime)
  *   9. Emollient Stopped — one row per stopped emolliation instance (int_datetime)
- *  10. Antenatal Steroid — one row per baby with Maternal History in period (mat_datetime)
+ *  10. Antenatal Steroid — one row per baby with Maternal History in period (mat_start_time)
  *  11. GA Source         — babies without a 1st-trimester USG (base_datetime)
  *
  * Reads from payload keys produced by WeeklyMeetingAggregator:
@@ -206,7 +206,7 @@ class WeeklyMeetingExcelExporter implements ExporterInterface
             'Emollient Stopped' => ['rows' => $payload['rawEmolStopped']   ?? [], 'colour' => '0E7C7B',
                                     'meta' => "daily_interventionemolliation_form  |  One row per instance with int_emoliate_baby = N  |  Date filter: int_datetime {$p}"],
             'Antenatal Steroid' => ['rows' => $payload['rawAntenatal']     ?? [], 'colour' => '6B4C9A',
-                                    'meta' => "maternal_history_module  |  One row per baby; Marked = mat_antenatal_steriod Y  |  Date filter: mat_datetime {$p}"],
+                                    'meta' => "maternal_history_module  |  One row per baby; Marked = mat_antenatal_steriod Y  |  Date filter: mat_start_time {$p}"],
             'GA Source'         => ['rows' => $payload['rawGaSource']      ?? [], 'colour' => '6B4C9A',
                                     'meta' => "baseline_information_module  |  Babies WITHOUT a 1st-trimester USG (no USG, 2nd / 3rd trimester, or trimester not marked)  |  Date filter: base_datetime {$p}"],
         ];
