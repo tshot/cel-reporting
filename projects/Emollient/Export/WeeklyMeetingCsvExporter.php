@@ -74,7 +74,8 @@ class WeeklyMeetingCsvExporter implements ExporterInterface
 
         // Build ordered site columns
         $sites = [];
-        foreach ([$prescreening, $screening, $discharge, $sepsis, $emollient] as $sec) {
+        foreach ([$prescreening, $screening, $discharge, $sepsis, $emollient,
+                  $payload['antenatal'] ?? [], $payload['gaSource'] ?? []] as $sec) {
             foreach ($sec as $siteCounts) {
                 foreach (array_keys($siteCounts) as $site) {
                     if ($site !== 'Total') $sites[$site] = true;
@@ -201,6 +202,14 @@ class WeeklyMeetingCsvExporter implements ExporterInterface
         $out .= $this->csv([]);
         $out .= $this->csv(['=== EMOLLIATION STOPPED (date field: int_datetime) ===']);
         $out .= $this->metaRows($emollient, $payload['emollientMeta'] ?? [], $columns);
+
+        // ── Sections 6 & 7: baseline_arm_1 checks ─────────────────────────────
+        $out .= $this->csv([]);
+        $out .= $this->csv(['=== ANTENATAL CORTICOSTEROIDS (date field: mat_datetime) ===']);
+        $out .= $this->metaRows($payload['antenatal'] ?? [], $payload['antenatalMeta'] ?? [], $columns);
+        $out .= $this->csv([]);
+        $out .= $this->csv(['=== GESTATIONAL AGE SOURCES (date field: base_datetime) ===']);
+        $out .= $this->metaRows($payload['gaSource'] ?? [], $payload['gaSourceMeta'] ?? [], $columns);
 
         return $out;
     }

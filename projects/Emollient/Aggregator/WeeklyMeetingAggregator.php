@@ -17,6 +17,8 @@ use CEL\Projects\Emollient\Aggregator\EligibilityWorkflow;
  * Section 3 — Discharge          (date field: per metric — see below)
  * Section 4 — Sepsis & Blood Workup (date field: nss_datetime)  → SepsisWorkupAggregator
  * Section 5 — Emolliation Stopped   (date field: int_datetime)  → EmollientStoppedAggregator
+ * Section 6 — Antenatal Corticosteroids (date field: mat_datetime)  → BaselineChecksAggregator
+ * Section 7 — Gestational Age Sources   (date field: base_datetime) → BaselineChecksAggregator
  *
  * Also produces raw per-record arrays for the Excel download:
  *   rawPrescreening  — one row per pre-screened baby in period
@@ -49,6 +51,7 @@ class WeeklyMeetingAggregator extends AbstractAggregator
     // Sections 4 & 5 — rows collected in the main loop, aggregated in a post-pass
     private array $sepsisRows = [];   // neonatal_sepsis_screening rows (any impression)
     private array $emolRows   = [];   // daily_interventionemolliation_form rows with int_emoliate_baby
+    private array $baseRows   = [];   // baseline_arm_1 rows: maternal history + baseline general info
     private array $enrSiteOf  = [];   // record_id => enr_hosp_code (site fallback)
     private array $enrDateOf  = [];   // record_id => enr_datetime, consented babies only
 
@@ -112,6 +115,9 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             // carry enrolment data that the sections below still need.
             if (SepsisWorkupAggregator::wants($row)) {
                 $this->sepsisRows[] = SepsisWorkupAggregator::slim($row);
+            }
+            if (BaselineChecksAggregator::wants($row)) {
+                $this->baseRows[] = BaselineChecksAggregator::slim($row);
             }
             if (EmollientStoppedAggregator::wants($row)) {
                 $this->emolRows[] = EmollientStoppedAggregator::slim($row);
@@ -568,7 +574,10 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             ->aggregate($this->sepsisRows, $this->enrSiteOf);
         $emolAgg   = (new EmollientStoppedAggregator($this->from, $this->to, $this->siteFilter))
             ->aggregate($this->emolRows, $this->enrSiteOf);
-        $this->sepsisRows = $this->emolRows = [];
+        // ── Sections 6 & 7: Antenatal steroid, GA sources (baseline_arm_1) ─
+        $baseAgg   = (new BaselineChecksAggregator($this->from, $this->to, $this->siteFilter))
+            ->aggregate($this->baseRows, $this->enrSiteOf);
+        $this->sepsisRows = $this->emolRows = $this->baseRows = [];
 
         return [
             'prescreening'    => $prescreening,
@@ -582,6 +591,11 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             'emollient'       => $this->toMetricMajor($emolAgg['by_site']),
             'emollientMeta'   => $emolAgg['metrics'],
             'emollientNotes'  => $emolAgg['skipped'],
+            'antenatal'       => $this->toMetricMajor($baseAgg['ans_by_site']),
+            'antenatalMeta'   => $baseAgg['ans_metrics'],
+            'gaSource'        => $this->toMetricMajor($baseAgg['ga_by_site']),
+            'gaSourceMeta'    => $baseAgg['ga_metrics'],
+            'baselineNotes'   => $baseAgg['skipped'],
             'timing'          => ['main_seconds' => round($tMain, 1)] + $fetchInfo
                                  + ['total_seconds' => round(microtime(true) - $t0, 1)],
             'metricMeta'      => EligibilityMetricDefinitions::metricMeta(),
@@ -594,6 +608,8 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             'rawSepsisBacklog' => $sepsisAgg['backlog'],
             'rawEmolPerBaby'   => $emolAgg['per_baby'],
             'rawEmolStopped'   => $emolAgg['instances'],
+            'rawAntenatal'     => $baseAgg['ans_rows'],
+            'rawGaSource'      => $baseAgg['ga_rows'],
             'period'          => [
                 'date_from' => $this->from?->format('Y-m-d'),
                 'date_to'   => $this->to?->format('Y-m-d'),
@@ -614,6 +630,8 @@ class WeeklyMeetingAggregator extends AbstractAggregator
      *   emollient — consented babies enrolled from DETAIL_WINDOW_DAYS before date_from
      *               up to date_to (the only ones whose day0..day28 forms can fall in
      *               the period)
+     *   baseline  — consented babies enrolled up to date_to, baseline_arm_1 only
+     *               (maternal history / baseline forms can be filled late)
      *
      * Site filter is applied on enr_hosp_code. A failed pull does not break the report:
      * its section shows the error instead.
@@ -628,13 +646,14 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             ? (clone $this->from)->modify('-' . ((int)$maxDays + self::DETAIL_WINDOW_DAYS) . ' days')
             : null;
 
-        $ids = ['sepsis' => [], 'emollient' => []];
+        $ids = ['sepsis' => [], 'emollient' => [], 'baseline' => []];
         foreach ($this->enrDateOf as $id => $raw) {
             try { $d = new \DateTime($raw); } catch (\Exception) { continue; }
             if ($this->to && $d > $this->to) continue;
             if ($this->siteFilter && !in_array($this->enrSiteOf[$id] ?? '', $this->siteFilter, true)) continue;
             if (!$sepsisStart || $d >= $sepsisStart) $ids['sepsis'][]    = (string)$id;
             if (!$windowStart || $d >= $windowStart) $ids['emollient'][] = (string)$id;
+            $ids['baseline'][] = (string)$id;
         }
 
         $info = [];
@@ -647,6 +666,9 @@ class WeeklyMeetingAggregator extends AbstractAggregator
                     $rows++;
                     if ($part === 'sepsis' && SepsisWorkupAggregator::wants($row)) {
                         $this->sepsisRows[] = SepsisWorkupAggregator::slim($row);
+                    }
+                    if ($part === 'baseline' && BaselineChecksAggregator::wants($row)) {
+                        $this->baseRows[] = BaselineChecksAggregator::slim($row);
                     }
                     if ($part === 'emollient' && EmollientStoppedAggregator::wants($row)) {
                         $this->emolRows[] = EmollientStoppedAggregator::slim($row);

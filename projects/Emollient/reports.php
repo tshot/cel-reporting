@@ -1248,12 +1248,13 @@ return [
             'fu28_alive_day28',
         ],
 
-        // Sections 4-5: extra pulls run by WeeklyMeetingAggregator after the main
-        // one — day events, only these fields, only consented babies (site filter
-        // applied on enr_hosp_code).
+        // Sections 4-7: extra pulls run by WeeklyMeetingAggregator after the main
+        // one — only these fields, only consented babies (site filter applied on
+        // enr_hosp_code).
         //   sepsis    : all babies enrolled up to date_to, so culture results still
         //               pending from any earlier week are found
         //   emollient : babies enrolled from 35 days before date_from to date_to
+        //   baseline  : all babies enrolled up to date_to, baseline_arm_1 only
         'detail_fetch' => [
             'sepsis' => [
                 'chunk_size' => 100,
@@ -1283,6 +1284,19 @@ return [
                     'int_doctor_deny_othr_reason', // doctor-deny free text (Excel only)
                     'int_sae_reasons',             // checkbox set: int_sae_reasons___*
                     'int_other_no_emoll_reason',   // other reason free text (Excel only)
+                ],
+            ],
+            // Sections 6-7: one row per enrolled baby on baseline_arm_1
+            'baseline' => [
+                'chunk_size' => 200,
+                'events'     => ['baseline_arm_1'],
+                'fields'     => [
+                    'record_id',
+                    'mat_datetime',               // Maternal History date (section 6 filter)
+                    'mat_antenatal_steriod',      // antenatal corticosteroids: Y = marked
+                    'base_datetime',              // Baseline General Information date (section 7 filter)
+                    'base_ga_source_avail',       // checkbox: ___lmp, ___usg, ___ballard, ___none
+                    'base_usg_trimester',         // 1 / 2 / 3
                 ],
             ],
         ],

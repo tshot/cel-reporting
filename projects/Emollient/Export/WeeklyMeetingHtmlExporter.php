@@ -77,7 +77,8 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
 
         // Build ordered site columns from all five sections
         $allSites = [];
-        foreach ([$prescreening, $screening, $discharge, $sepsis, $emollient] as $sectionData) {
+        foreach ([$prescreening, $screening, $discharge, $sepsis, $emollient,
+                  $payload['antenatal'] ?? [], $payload['gaSource'] ?? []] as $sectionData) {
             foreach ($sectionData as $siteCounts) {
                 foreach (array_keys($siteCounts) as $site) {
                     if ($site !== 'Total') $allSites[$site] = true;
@@ -227,10 +228,45 @@ class WeeklyMeetingHtmlExporter implements ExporterInterface
         ])
     );
 
+    // ── Sections 6 & 7: baseline_arm_1 checks ────────────────────────────────
+    $bn = $payload['baselineNotes'] ?? [];
+    echo $this->renderMetaSection(
+        title:      'Antenatal Corticosteroids',
+        dateField:  'mat_datetime',
+        dateRange:  $dateRange,
+        data:       $payload['antenatal'] ?? [],
+        meta:       $payload['antenatalMeta'] ?? [],
+        columns:    $columns,
+        siteLabels: $siteLabels,
+        notes:      array_filter([
+            $errNote('baseline', 'Baseline'),
+            'Was the mother given antenatal corticosteroids before delivery? (mat_antenatal_steriod). Marked = Y; any other value or blank = not marked. '
+          . 'Babies whose Maternal History form is dated in this period; both arms. List: Excel sheet &ldquo;Antenatal Steroid&rdquo;.',
+            !empty($bn['ans_undated']) ? (int)$bn['ans_undated'] . ' Maternal History form(s) with no mat_datetime were not counted.' : '',
+        ])
+    );
+    echo $this->renderMetaSection(
+        title:      'Gestational Age Sources',
+        dateField:  'base_datetime',
+        dateRange:  $dateRange,
+        data:       $payload['gaSource'] ?? [],
+        meta:       $payload['gaSourceMeta'] ?? [],
+        columns:    $columns,
+        siteLabels: $siteLabels,
+        notes:      array_filter([
+            $errNote('baseline', 'Baseline'),
+            'Sources available for gestational age (base_ga_source_avail: LMP, USG, Ballard, None) and USG trimester (base_usg_trimester). '
+          . '&ldquo;No 1st-trimester USG&rdquo; = every baby except USG marked with 1st trimester, i.e. no USG, USG in the 2nd or 3rd trimester, or trimester not marked. '
+          . 'Babies whose Baseline General Information form is dated in this period; both arms. List with sources and reason: Excel sheet &ldquo;GA Source&rdquo;.',
+            !empty($bn['ga_undated']) ? (int)$bn['ga_undated'] . ' Baseline General Information form(s) with no base_datetime were not counted.' : '',
+            !empty($bn['no_site']) ? (int)$bn['no_site'] . ' baseline form(s) for babies with no enrolment site were not counted.' : '',
+        ])
+    );
+
     // ── Timing footer (screen only) ──────────────────────────────────────────
     if ($tm) {
         $parts = ['Main REDCap pull + sections 1–3: ' . ($tm['main_seconds'] ?? '?') . ' s'];
-        foreach (['sepsis' => 'Sepsis pull', 'emollient' => 'Emolliation pull'] as $part => $lbl) {
+        foreach (['sepsis' => 'Sepsis pull', 'emollient' => 'Emolliation pull', 'baseline' => 'Baseline pull'] as $part => $lbl) {
             if (!isset($tm["{$part}_seconds"])) continue;
             $parts[] = "{$lbl}: " . $tm["{$part}_seconds"] . ' s for ' . (int)$tm["{$part}_babies"]
                      . ' babies (' . (int)$tm["{$part}_rows"] . ' rows)';

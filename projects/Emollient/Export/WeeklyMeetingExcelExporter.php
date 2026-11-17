@@ -9,7 +9,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
  * WeeklyMeetingExcelExporter
  *
  * Generates a downloadable Excel file with raw form data for the report period.
- * Nine tabs:
+ * Eleven tabs:
  *
  *   1. Pre-Screening     — baby_prescreening_and_screening_form (baby_datetime)
  *   2. Discharge         — discharge_form (dis_datetime)
@@ -20,10 +20,13 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
  *   7. Sepsis Backlog    — earlier cases still missing culture / result (confirmed) or CRP / TLC (suspected)
  *   8. Emollient PerBaby — one row per baby with >= 1 stopped instance (int_datetime)
  *   9. Emollient Stopped — one row per stopped emolliation instance (int_datetime)
+ *  10. Antenatal Steroid — one row per baby with Maternal History in period (mat_datetime)
+ *  11. GA Source         — babies without a 1st-trimester USG (base_datetime)
  *
  * Reads from payload keys produced by WeeklyMeetingAggregator:
  *   rawPrescreening, rawDischarge, rawDay28Status, rawFollowup29,
- *   rawSepsisPerBaby, rawSepsisForms, rawSepsisBacklog, rawEmolPerBaby, rawEmolStopped
+ *   rawSepsisPerBaby, rawSepsisForms, rawSepsisBacklog, rawEmolPerBaby, rawEmolStopped,
+ *   rawAntenatal, rawGaSource
  */
 class WeeklyMeetingExcelExporter implements ExporterInterface
 {
@@ -202,6 +205,10 @@ class WeeklyMeetingExcelExporter implements ExporterInterface
                                     'meta' => "daily_interventionemolliation_form  |  One row per baby with >= 1 instance not emolliated  |  Date filter: int_datetime {$p}"],
             'Emollient Stopped' => ['rows' => $payload['rawEmolStopped']   ?? [], 'colour' => '0E7C7B',
                                     'meta' => "daily_interventionemolliation_form  |  One row per instance with int_emoliate_baby = N  |  Date filter: int_datetime {$p}"],
+            'Antenatal Steroid' => ['rows' => $payload['rawAntenatal']     ?? [], 'colour' => '6B4C9A',
+                                    'meta' => "maternal_history_module  |  One row per baby; Marked = mat_antenatal_steriod Y  |  Date filter: mat_datetime {$p}"],
+            'GA Source'         => ['rows' => $payload['rawGaSource']      ?? [], 'colour' => '6B4C9A',
+                                    'meta' => "baseline_information_module  |  Babies WITHOUT a 1st-trimester USG (no USG, 2nd / 3rd trimester, or trimester not marked)  |  Date filter: base_datetime {$p}"],
         ];
     }
 
