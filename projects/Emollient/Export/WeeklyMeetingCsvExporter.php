@@ -82,18 +82,35 @@ class WeeklyMeetingCsvExporter implements ExporterInterface
                 }
             }
         }
-        $sites   = array_keys($sites);
-        $columns = array_merge(['Total'], $sites);
+        // Same site order as the HTML: site_labels order first, then any others
+        $siteLabels = $payload['site_labels'] ?? [];
+        $ordered    = [];
+        foreach (array_keys($siteLabels) as $code) {
+            if (isset($sites[$code])) $ordered[] = $code;
+        }
+        foreach (array_keys($sites) as $code) {
+            if (!in_array($code, $ordered, true)) $ordered[] = $code;
+        }
+        $columns = array_merge(['Total'], $ordered);
 
         $out = '';
 
         // Report header
         $out .= $this->csv(['Weekly Meeting Report']);
         $out .= $this->csv(["Period: {$dateFrom} to {$dateTo}"]);
+        $out .= $this->csv(['Generated: ' . date('Y-m-d H:i')]);
         $out .= $this->csv([]);
 
-        // Column headers
-        $out .= $this->csv(array_merge(['Section', 'Metric'], $columns));
+        // Definitions: most apparent mismatches with site registers come from these
+        $out .= $this->csv(['=== DEFINITIONS (read before comparing with a site register) ===']);
+        foreach ($this->definitions($dateFrom, $dateTo, $payload) as $line) {
+            $out .= $this->csv(['', $line]);
+        }
+        $out .= $this->csv([]);
+
+        // Column headers: same labels and order as the HTML
+        $out .= $this->csv(array_merge(['Section', 'Metric'],
+            array_map(fn($c) => $c === 'Total' ? 'Total' : ($siteLabels[$c] ?? $c), $columns)));
 
         // ── Section 1: Pre-Screening ──────────────────────────────────────────
         $out .= $this->csv([]);
@@ -239,6 +256,33 @@ class WeeklyMeetingCsvExporter implements ExporterInterface
         }
         if (!$meta) $out .= $this->csv(['', 'No data for this period']);
         return $out;
+    }
+
+    /** Plain-text definitions printed at the top of the CSV (the HTML shows them as section notes). */
+    private function definitions(string $dateFrom, string $dateTo, array $payload): array
+    {
+        $fmt = fn($d) => ($t = strtotime($d)) ? date('j M Y', $t) : $d;
+        $lb  = (int)($payload['sepsisNotes']['lookback_days'] ?? 2);
+        $exc = $payload['sepsisNotes']['exclusive'] ?? true;
+        return [
+            "Window: {$fmt($dateFrom)} to {$fmt($dateTo)}, both days included. A form counts when its date field (below) falls in the window.",
+            'Counts are babies, not forms: a baby with several forms counts once per row. Exceptions: Emolliation Stopped rows that say "instances" or "study days".',
+            'Date that decides the week, by section: Pre-Screening and Screening = baby_datetime (a site register may go by admission date instead); '
+          . 'Enrolment = enr_datetime; Discharge = dis_datetime; Protocol deviation = pd_datetime; SAE = sae_datetime; Withdrawal = sw_datetime; '
+          . '29-day follow-up = fu28_datetime; Sepsis = nss_datetime; Emolliation = int_datetime; Antenatal corticosteroids = mat_start_time; GA sources = base_datetime.',
+            'No date filter (as on the report date): Still in Hospital, 28 days completed still in hospital, and more than 40 days of age (age to the last day of the window).',
+            'Still in Hospital = enrolled babies with no exit. Exits: discharge form (discharged, or still admitted at day 28), protocol deviation, withdrawal. An SAE is not an exit. '
+          . 'A stop form with its site left blank counts against the enrolment site.',
+            'Site: the site recorded on the form; where blank, the enrolment site. Columns are in the same order as the HTML report.',
+            "Sepsis: tests counted from {$lb} day(s) before the baby's first Confirmed / Suspected form up to the window end. "
+          . 'Test done = ticked (CBC, CRP) or culture = Y; result = a number (TLC, CRP) or Positive / Negative; NI, blank and 9999999999 = result missing. '
+          . ($exc ? 'Suspected excludes babies also Confirmed in the window.' : 'A baby with both impressions counts in both Confirmed and Suspected.'),
+            'Emolliation: stopped = int_emoliate_baby N; fully stopped day = all 3 entries of the study day N (Day 0: all recorded entries). '
+          . 'One instance can have several reasons, so reason rows can add up to more than the stopped count.',
+            'Antenatal corticosteroids: marked = mat_antenatal_steriod Y; anything else or blank = not marked. GA: "No 1st-trimester USG" = all babies except USG marked with 1st trimester. Both arms.',
+            'Percentages are shown in the HTML report only.',
+            'Per-baby lists behind every count: use "Download Data (Excel)" on the HTML report (one sheet per list, e.g. Still in Hospital, Sepsis PerBaby, Emollient PerBaby).',
+        ];
     }
 
     private function dischargeMeta(): array
