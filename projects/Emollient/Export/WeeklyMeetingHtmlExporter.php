@@ -463,7 +463,7 @@ function wmDownloadExcel() { wmDownloadFormat('excel'); }
             $isStillInHosp = ($metric === 'dis_still_in_hospital');
             $isIndented    = ($m['indent'] ?? false);
             $labelSuffix = $isStillInHosp
-                ? " <span class='wm-formula-note' title='Enrolled minus (Discharged + PD + SAE + Withdrawal)'>= Enrolled &minus; Stopped</span>"
+                ? " <span class='wm-formula-note' title='Enrolled minus babies with an exit: discharge form (in hospital N or Y), protocol deviation or withdrawal. SAE is not an exit.'>= Enrolled &minus; Stopped</span>"
                 : '';
             $labelClass = $isIndented ? 'wm-metric-label wm-metric-indented' : 'wm-metric-label';
             $body .= "<tr class='{$cls}'><td class='{$labelClass}'>"

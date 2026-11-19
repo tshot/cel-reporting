@@ -193,6 +193,8 @@ class WeeklyMeetingExcelExporter implements ExporterInterface
                                     'meta' => "discharge_form  |  Date filter: dis_datetime {$p}"],
             '28-Day Status'     => ['rows' => $payload['rawDay28Status']   ?? [], 'colour' => 'C55A11',
                                     'meta' => "discharge_after_28_days_of_stay  |  As on report date: {$reportDate} (no date filter)"],
+            'Still in Hospital' => ['rows' => $payload['rawStillInHospital'] ?? [], 'colour' => 'C55A11',
+                                    'meta' => "Audit trail: every enrolled baby; exits = discharge form (dis_in_hosp N/Y), protocol deviation, withdrawal; SAE is not an exit  |  As on report date: {$reportDate} (no date filter)"],
             '29-Day Follow-up'  => ['rows' => $payload['rawFollowup29']    ?? [], 'colour' => '7030A0',
                                     'meta' => "day_28_follow_up_form  |  Date filter: fu28_datetime {$p}"],
             'Sepsis PerBaby'    => ['rows' => $payload['rawSepsisPerBaby'] ?? [], 'colour' => 'A61C3C',

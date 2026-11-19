@@ -1240,6 +1240,7 @@ return [
             'pd_datetime',
             'protocol_deviation_form_complete',
             'sae_datetime',
+            'sae_hosp_code',          // site of SAE rows with no PD form
             'sw_datetime',
 
             // ── day29_arm_1 (29-day follow-up) ──

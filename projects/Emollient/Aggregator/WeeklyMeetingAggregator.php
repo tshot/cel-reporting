@@ -54,6 +54,7 @@ class WeeklyMeetingAggregator extends AbstractAggregator
     private array $baseRows   = [];   // baseline_arm_1 rows: maternal history + baseline general info
     private array $enrSiteOf  = [];   // record_id => enr_hosp_code (site fallback)
     private array $enrDateOf  = [];   // record_id => enr_datetime, consented babies only
+    private array $exitInfo   = [];   // record_id => exit forms found (Still in Hospital), any site
 
     // Days after enrolment in which day0..day28 forms can fall (28 days + slack)
     private const DETAIL_WINDOW_DAYS = 35;
@@ -132,12 +133,42 @@ class WeeklyMeetingAggregator extends AbstractAggregator
                 $this->enrDateOf[$id] = $enrDt;
             }
 
+            // ── Still in Hospital: record exit forms BEFORE any site check ─
+            // An exit must count even when the form's own site field is blank
+            // or differs; the baby's site and arm always come from enrolment.
+            // Exits: discharge form (dis_in_hosp N or Y), protocol deviation,
+            // withdrawal. SAE is recorded for the audit sheet but is NOT an exit.
+            if ($event === 'discharge_arm_1') {
+                $this->exitInfo[$id]['dis'] = [
+                    'in_hosp'    => trim($row['dis_in_hosp'] ?? ''),
+                    'date'       => trim($row['dis_datetime'] ?? ''),
+                    'site_blank' => trim($row['dis_hosp_code'] ?? '') === '',
+                ];
+            }
+            if ($event === 'other_forms_arm_1') {
+                $pdD  = trim($row['pd_datetime']  ?? '');
+                $swD  = trim($row['sw_datetime']  ?? '');
+                $saeD = trim($row['sae_datetime'] ?? '');
+                if ($pdD !== '' && trim($row['protocol_deviation_form_complete'] ?? '') !== '') {
+                    $this->exitInfo[$id]['pd'] = $pdD;
+                }
+                if ($swD  !== '') $this->exitInfo[$id]['sw']  = $swD;
+                if ($saeD !== '') $this->exitInfo[$id]['sae'] = $saeD;
+                if (($pdD !== '' || $swD !== '' || $saeD !== '') && trim($row['pd_hosp_code'] ?? '') === '') {
+                    $this->exitInfo[$id]['other_site_blank'] = true;
+                }
+            }
+
             // ── Resolve site ──────────────────────────────────────────────
             $site = '';
             foreach (['baby_hosp_code', 'enr_hosp_code', 'dis_hosp_code',
-                      'pd_hosp_code', 'fu28_hosp_name'] as $f) {
+                      'pd_hosp_code', 'sae_hosp_code', 'fu28_hosp_name'] as $f) {
                 $v = trim($row[$f] ?? '');
                 if ($v !== '') { $site = $v; break; }
+            }
+            // Discharge / other forms with no site of their own: use the enrolment site
+            if ($site === '' && in_array($event, ['discharge_arm_1', 'other_forms_arm_1'], true)) {
+                $site = $this->enrSiteOf[$id] ?? '';
             }
 
             if (!$this->siteOk($site)) continue;
@@ -228,7 +259,7 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             // =================================================================
             if ($event === 'discharge_arm_1')
             {
-                $disSite  = trim($row['dis_hosp_code'] ?? '');
+                $disSite  = trim($row['dis_hosp_code'] ?? '') ?: ($this->enrSiteOf[$id] ?? '');
                 if ($disSite === '' || !$this->siteOk($disSite)) continue;
 
                 $disDate  = trim($row['dis_datetime']            ?? '');
@@ -274,21 +305,14 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             // =================================================================
             if ($event === 'other_forms_arm_1')
             {
-                $pdSite = trim($row['pd_hosp_code'] ?? '');
+                // Site: PD form, else SAE form, else the baby's enrolment site.
+                // (Before Nov 2026 a blank pd_hosp_code dropped the whole row, so
+                //  SAE / withdrawal without a PD form were never counted.)
+                $pdSite = trim($row['pd_hosp_code'] ?? '')
+                       ?: trim($row['sae_hosp_code'] ?? '')
+                       ?: ($this->enrSiteOf[$id] ?? '');
                 if ($pdSite === '' || !$this->siteOk($pdSite)) continue;
-
-                // ── Track unique stopped record_ids for still-in-hospital ─
-                // Store regardless of date filter — cumulative stopped count
-                $pdDate2  = trim($row['pd_datetime']  ?? '');
-                $saeDate2 = trim($row['sae_datetime'] ?? '');
-                $swDate2  = trim($row['sw_datetime']  ?? '');
-                if (($pdDate2  !== '' && trim($row['protocol_deviation_form_complete'] ?? '') !== '')
-                 || ($saeDate2 !== '')
-                 || ($swDate2  !== '')) {
-                    if (!isset($this->rawByRecord[$id]['stopped'])) {
-                        $this->rawByRecord[$id]['stopped'] = ['site' => $pdSite];
-                    }
-                }
+                // Exits for Still in Hospital are recorded above, before any site check.
 
 
                 $pdDate = trim($row['pd_datetime'] ?? '');
@@ -356,47 +380,69 @@ class WeeklyMeetingAggregator extends AbstractAggregator
         }
 
         // ── Post-pass: derive still_in_hospital ───────────────────────────
-        // Formula: Total enrolled (cumulative, all-time up to date_to)
-        //          minus UNIQUE babies with any of:
-        //            - discharge form filed (in_hosp = 'Y' OR 'N')
-        //            - Protocol Deviation
-        //            - SAE
-        //            - Withdrawal
-        //
-        // A baby with multiple stop reasons (e.g. SAE leading to discharge)
-        // counts as ONE stopped baby, not two.
-        //
-        // Breakup by arm uses enr_study_arm from day0_arm_1.
-
-        // Build unique stopped sets per site AND per arm-site combination
+        // Still in Hospital = enrolled babies (consent Y, enrolment date, site)
+        //   minus UNIQUE enrolled babies with any EXIT form:
+        //     - discharge form with dis_in_hosp = 'N' (discharged) or 'Y'
+        //       (still admitted at day 28 -> shown under "28 days completed")
+        //     - protocol deviation (pd_datetime + form status not blank)
+        //     - withdrawal (sw_datetime)
+        //   SAE is NOT an exit (study team decision, Nov 2026).
+        // Site and arm come from the enrolment form. No date filter: the figure
+        // is "as of the moment the report runs". Per-baby trail: rawStillInHospital.
         $stoppedIds      = [];  // site => [record_id => true]
         $stoppedIdsArm   = [];  // arm => site => [record_id => true]
+        $rawStillInHospital = [];
 
-        foreach ($this->rawByRecord as $id => $events) 
+        foreach ($this->rawByRecord as $id => $events)
         {
+            if (!isset($events['enrollment'])) continue;
             $arm  = $events['enrollment']['arm']  ?? '';
             $site = $events['enrollment']['site'] ?? '';
+            if ($site === '') continue;
 
-            // Skip if not enrolled (no arm, no site)
-            if ($arm === '' || $site === '') continue;
+            $x       = $this->exitInfo[$id] ?? [];
+            $dis     = $x['dis'] ?? null;
+            $reasons = [];
+            $notes   = [];
+            if ($dis && $dis['in_hosp'] === 'N') $reasons[] = 'Discharged';
+            if ($dis && $dis['in_hosp'] === 'Y') $reasons[] = 'Day-28 form (still admitted)';
+            if ($dis && !in_array($dis['in_hosp'], ['Y', 'N'], true)) $notes[] = 'Discharge form with dis_in_hosp blank: not an exit';
+            if ($dis && $dis['site_blank']) $notes[] = 'dis_hosp_code blank: enrolment site used';
+            if (!empty($x['pd'])) $reasons[] = 'Protocol deviation';
+            if (!empty($x['sw'])) $reasons[] = 'Withdrawal';
+            if (!empty($x['sae'])) $notes[] = 'SAE recorded (not an exit)';
+            if (!empty($x['other_site_blank'])) $notes[] = 'pd_hosp_code blank: enrolment site used';
 
-            // Stopped via discharge form (in_hosp = 'Y' or 'N')
-            $hasDischarge = isset($events['discharge'])
-                && in_array($events['discharge']['in_hosp'], ['Y', 'N'], true);
-            // Stopped via PD/SAE/withdrawal
-            $hasOtherStop = isset($events['stopped']);
-
-            if ($hasDischarge || $hasOtherStop) 
+            if ($reasons)
             {
                 $stoppedIds[$site][$id]   = true;
                 $stoppedIds['Total'][$id] = true;
-                if ($arm === 'Intervention' || $arm === 'Control') 
+                if ($arm === 'Intervention' || $arm === 'Control')
                 {
                     $stoppedIdsArm[$arm][$site][$id]   = true;
                     $stoppedIdsArm[$arm]['Total'][$id] = true;
                 }
             }
+
+            $rawStillInHospital[] = [
+                'record_id'       => (string)$id,
+                'site'            => $site,
+                'arm'             => $arm,
+                'enr_date'        => $events['enrollment']['date'] ?? '',
+                'status'          => $reasons ? 'Exited' : 'Still in hospital',
+                'exit_reason'     => implode('; ', $reasons),
+                'dis_in_hosp'     => $dis['in_hosp'] ?? '',
+                'dis_datetime'    => $dis['date'] ?? '',
+                'pd_datetime'     => $x['pd']  ?? '',
+                'sw_datetime'     => $x['sw']  ?? '',
+                'sae_datetime'    => $x['sae'] ?? '',
+                'notes'           => implode('; ', $notes),
+            ];
         }
+        usort($rawStillInHospital, fn($a, $b) =>
+            strnatcmp($a['site'], $b['site'])
+            ?: strcmp($b['status'], $a['status'])          // "Still in hospital" before "Exited"
+            ?: strnatcmp($a['record_id'], $b['record_id']));
 
         // Build enrolled sets per site AND per arm
         $enrolledIds    = [];  // site => [record_id => true]
@@ -603,6 +649,7 @@ class WeeklyMeetingAggregator extends AbstractAggregator
             'rawDischarge'    => $rawDischarge,
             'rawDay28Status'  => $rawDay28Status,
             'rawFollowup29'   => $rawFollowup29,
+            'rawStillInHospital' => $rawStillInHospital,
             'rawSepsisPerBaby' => $sepsisAgg['per_baby'],
             'rawSepsisForms'   => $sepsisAgg['forms'],
             'rawSepsisBacklog' => $sepsisAgg['backlog'],
